@@ -181,6 +181,40 @@ namespace Janggi
             if (paused) PlayerPrefs.Save();
         }
 
+        // ── 기보 ──────────────────────────────────────────
+        // 좌표는 초(楚) 쪽 왼쪽 아래를 1,1로 한 (가로,세로). 예: "3. 초 차 1,1→1,7 ×병"
+
+        public List<string> GetMoveRecordLines()
+        {
+            MoveRecord[] records = historyStack.ToArray();
+            Array.Reverse(records);
+            var lines = new List<string>(records.Length);
+            for (int i = 0; i < records.Length; i++) lines.Add(Notate(records[i], i + 1));
+            return lines;
+        }
+
+        public static string Notate(MoveRecord r, int number)
+        {
+            string side = r.Mover == Team.Cho ? "초" : "한";
+            if (r.MovedPiece == null) return $"{number}. {side} 한수 쉼";
+            string capture = r.CapturedPiece != null ? $" ×{PieceName(r.CapturedPiece)}" : "";
+            return $"{number}. {side} {PieceName(r.MovedPiece)} {r.From.x + 1},{r.From.y + 1}→{r.To.x + 1},{r.To.y + 1}{capture}";
+        }
+
+        private static string PieceName(PieceData p)
+        {
+            switch (p.Type)
+            {
+                case PieceType.King: return "궁";
+                case PieceType.Guard: return "사";
+                case PieceType.Car: return "차";
+                case PieceType.Cannon: return "포";
+                case PieceType.Horse: return "마";
+                case PieceType.Elephant: return "상";
+                default: return p.Team == Team.Cho ? "졸" : "병";
+            }
+        }
+
         // ── 힌트 ──────────────────────────────────────────
         // 사람 차례에 엔진 최고 실력으로 짧게 읽어 추천 수를 돌려줌 (한수 쉼 추천이면 From == To)
         public bool RequestHint(Action<Move> onResult)

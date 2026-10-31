@@ -92,6 +92,14 @@ def settings():  # 설정: 조절 막대 세 개
     return img
 
 
+def record():  # 기보: 번호 붙은 줄 목록
+    img, d = canvas()
+    for y in (32, 64, 96):
+        dot(d, 26, y, 7)
+        polyline(d, [(46, y), (106, y)])
+    return img
+
+
 def new_game():  # 새 대국: 원 안의 더하기
     img, d = canvas()
     d.ellipse([*p(18, 18), *p(110, 110)], outline=WHITE, width=W)
@@ -117,7 +125,7 @@ def exit_icon():  # 나가기: 문과 화살표
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    for name, fn in [("undo", undo), ("pass", pass_turn), ("view", view), ("menu", menu), ("hint", hint), ("settings", settings),
+    for name, fn in [("undo", undo), ("pass", pass_turn), ("view", view), ("menu", menu), ("hint", hint), ("settings", settings), ("record", record),
                      ("new_game", new_game), ("flag", flag), ("exit", exit_icon)]:
         fn().resize((SIZE, SIZE), Image.LANCZOS).save(OUT / f"{name}.png")
     print("saved to", OUT)

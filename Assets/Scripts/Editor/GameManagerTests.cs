@@ -110,6 +110,20 @@ namespace Janggi.Tests
         }
 
         [Test]
+        public void MoveRecordLines_ShowSidePieceCoordinatesAndCaptures()
+        {
+            Assert.IsTrue(gm.MakeMove(new BoardPos(0, 3), new BoardPos(1, 3)));
+            gm.PassTurn();
+            Assert.IsTrue(gm.MakeMove(new BoardPos(0, 0), new BoardPos(0, 6)));
+
+            var lines = gm.GetMoveRecordLines();
+            Assert.AreEqual(3, lines.Count);
+            Assert.AreEqual("1. 초 졸 1,4→2,4", lines[0]);
+            Assert.AreEqual("2. 한 한수 쉼", lines[1]);
+            Assert.AreEqual("3. 초 차 1,1→1,7 ×병", lines[2]);
+        }
+
+        [Test]
         public void TimeOut_LosesOnlyWhenLimitIsSet()
         {
             gm.moveTimeLimitSec = 0;

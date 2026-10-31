@@ -519,11 +519,11 @@ namespace Janggi
         private void ShowMenuSheet()
         {
             GameObject overlay = CreateOverlay("MenuSheet");
-            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 644f));
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 768f));
             // 화면 폭에 맞춰 늘어나게 (캔버스 폭은 기기 비율에 따라 1080보다 좁을 수 있음)
             sheet.anchorMin = new Vector2(0f, 0f);
             sheet.anchorMax = new Vector2(1f, 0f);
-            sheet.sizeDelta = new Vector2(-32f, 644f);
+            sheet.sizeDelta = new Vector2(-32f, 768f);
 
             Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
@@ -531,9 +531,72 @@ namespace Janggi
             title.text = "메뉴";
 
             CreateSheetRow(sheet, -100f, "new_game", "새 대국 · 차림과 AI 수준", Color.white, () => { CloseOverlay(); ShowPlacementSetupDialog(); });
-            CreateSheetRow(sheet, -224f, "settings", "설정 · 효과음과 음성", Color.white, ShowSettingsSheet);
-            CreateSheetRow(sheet, -348f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
-            CreateSheetRow(sheet, -472f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "진행 중인 대국은 저장되지 않습니다.", "나가기", OnExitClicked));
+            CreateSheetRow(sheet, -224f, "record", "기보 · 둔 수 목록", Color.white, ShowMoveRecordSheet);
+            CreateSheetRow(sheet, -348f, "settings", "설정 · 효과음과 음성", Color.white, ShowSettingsSheet);
+            CreateSheetRow(sheet, -472f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
+            CreateSheetRow(sheet, -596f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "진행 중인 대국은 저장되지 않습니다.", "나가기", OnExitClicked));
+        }
+
+        private void ShowMoveRecordSheet()
+        {
+            List<string> lines = GameManager.Instance != null ? GameManager.Instance.GetMoveRecordLines() : new List<string>();
+            GameObject overlay = CreateOverlay("MoveRecordSheet");
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 1100f));
+            sheet.anchorMin = new Vector2(0f, 0f);
+            sheet.anchorMax = new Vector2(1f, 0f);
+            sheet.sizeDelta = new Vector2(-32f, 1100f);
+
+            Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
+            title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
+            title.fontStyle = FontStyle.Bold;
+            title.text = $"기보 ({lines.Count}수)";
+
+            Text hint = CreatePanelText(sheet, "Legend", new Vector2(0f, -78f), new Vector2(900f, 36f), 22, TextAnchor.MiddleCenter, TextSubColor);
+            hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = hint.rectTransform.pivot = new Vector2(0.5f, 1f);
+            hint.text = "좌표: 초(楚) 쪽 왼쪽 아래가 1,1 (가로,세로) · ×는 잡은 말";
+
+            // 스크롤 목록: 마스크 영역 안에서 줄을 위에서부터 쌓고, 마지막 수가 보이게 맨 아래로 스크롤
+            GameObject viewport = new GameObject("Viewport");
+            viewport.transform.SetParent(sheet, false);
+            RectTransform vp = viewport.AddComponent<RectTransform>();
+            vp.anchorMin = Vector2.zero;
+            vp.anchorMax = Vector2.one;
+            vp.offsetMin = new Vector2(40f, 30f);
+            vp.offsetMax = new Vector2(-40f, -130f);
+            viewport.AddComponent<RectMask2D>();
+            Image vpHit = viewport.AddComponent<Image>();
+            vpHit.color = new Color(0f, 0f, 0f, 0.001f); // 드래그를 받기 위한 투명 배경
+
+            GameObject content = new GameObject("Content");
+            content.transform.SetParent(viewport.transform, false);
+            RectTransform ct = content.AddComponent<RectTransform>();
+            ct.anchorMin = new Vector2(0f, 1f);
+            ct.anchorMax = new Vector2(1f, 1f);
+            ct.pivot = new Vector2(0.5f, 1f);
+            ct.sizeDelta = Vector2.zero; // 폭은 목록 영역과 같게 (기본값 100이면 좌우로 50씩 삐져나가 잘림)
+            VerticalLayoutGroup layout = content.AddComponent<VerticalLayoutGroup>();
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.childForceExpandHeight = false;
+            layout.spacing = 4f;
+            content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            if (lines.Count == 0) lines.Add("아직 둔 수가 없습니다.");
+            foreach (string line in lines)
+            {
+                Text row = CreatePanelText(content.transform, "Line", Vector2.zero, new Vector2(0f, 52f), 30, TextAnchor.MiddleLeft,
+                    line.Contains(". 초 ") ? ChoColor : line.Contains(". 한 ") ? HanColor : TextSubColor);
+                row.text = line;
+                row.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
+            }
+
+            ScrollRect scroll = viewport.AddComponent<ScrollRect>();
+            scroll.content = ct;
+            scroll.viewport = vp;
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            Canvas.ForceUpdateCanvases();
+            scroll.verticalNormalizedPosition = 0f;
         }
 
         private void ShowSettingsSheet()
