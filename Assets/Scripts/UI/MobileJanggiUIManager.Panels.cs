@@ -309,10 +309,10 @@ namespace Janggi
         {
             JanggiSoundManager sound = JanggiSoundManager.Instance;
             GameObject overlay = CreateOverlay("SettingsSheet");
-            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 400f));
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 524f));
             sheet.anchorMin = new Vector2(0f, 0f);
             sheet.anchorMax = new Vector2(1f, 0f);
-            sheet.sizeDelta = new Vector2(-32f, 400f);
+            sheet.sizeDelta = new Vector2(-32f, 524f);
 
             Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
@@ -325,6 +325,8 @@ namespace Janggi
                 () => { sound.SfxEnabled = !sound.SfxEnabled; ShowSettingsSheet(); });
             CreateSheetRow(sheet, -224f, "settings", $"음성 대사: {(sound.VoiceEnabled ? "켜짐" : "꺼짐")}", sound.VoiceEnabled ? Color.white : TextSubColor,
                 () => { sound.VoiceEnabled = !sound.VoiceEnabled; ShowSettingsSheet(); });
+            CreateSheetRow(sheet, -348f, "settings", $"진동: {(sound.VibrationEnabled ? "켜짐" : "꺼짐")}", sound.VibrationEnabled ? Color.white : TextSubColor,
+                () => { sound.VibrationEnabled = !sound.VibrationEnabled; ShowSettingsSheet(); });
         }
 
         private void ShowConfirm(string title, string message, string confirmLabel, UnityEngine.Events.UnityAction onConfirm)

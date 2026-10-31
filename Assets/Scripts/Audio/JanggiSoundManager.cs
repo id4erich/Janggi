@@ -15,7 +15,34 @@ namespace Janggi
         private AudioSource voiceSource;
 
         // 설정 시트의 효과음·음성 대사 켜기/끄기 (기기에 저장)
-        public const string KeySfx = "Janggi_Sfx", KeyVoice = "Janggi_Voice";
+        public const string KeySfx = "Janggi_Sfx", KeyVoice = "Janggi_Voice", KeyVibration = "Janggi_Vibration";
+
+        public bool VibrationEnabled
+        {
+            get => PlayerPrefs.GetInt(KeyVibration, 1) == 1;
+            set { PlayerPrefs.SetInt(KeyVibration, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private AndroidJavaObject vibrator;
+#endif
+
+        // 짧은 진동 (Handheld.Vibrate는 길이를 못 정해 기기 Vibrator를 직접 씀)
+        public void Vibrate(long ms)
+        {
+            if (!VibrationEnabled) return;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                if (vibrator == null)
+                    using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                    using (var activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+                        vibrator = activity.Call<AndroidJavaObject>("getSystemService", "vibrator");
+                vibrator?.Call("vibrate", ms);
+            }
+            catch (System.Exception e) { Debug.LogWarning($"진동 실패: {e.Message}"); }
+#endif
+        }
 
         public bool SfxEnabled
         {
@@ -111,6 +138,7 @@ namespace Janggi
             AudioClip clip = AudioClip.Create("MoveSFX", samples, 1, sampleRate, false);
             clip.SetData(data, 0);
             sfxSource.PlayOneShot(clip, 0.9f);
+            Vibrate(20);
         }
 
         /// <summary>
@@ -118,6 +146,7 @@ namespace Janggi
         /// </summary>
         public void PlayCaptureSound()
         {
+            Vibrate(45);
             int sampleRate = 44100;
             float duration = 0.18f;
             int samples = (int)(sampleRate * duration);
@@ -158,6 +187,7 @@ namespace Janggi
         public void PlayJangiyoVoice()
         {
             SpeakFreeTTS("장이야!");
+            Vibrate(120);
             StartCoroutine(GenerateAndPlayVoice("JANGIYO", 0.65f, 180f, 1.2f));
         }
 
