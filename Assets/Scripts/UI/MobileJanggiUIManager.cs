@@ -9,12 +9,8 @@ namespace Janggi
     {
         public static MobileJanggiUIManager Instance { get; private set; }
 
-        private Text turnStatusText;
         private Text timerText;
-        private Text scoreText;
         private Text recordText;
-        private Image choTurnIndicator;
-        private Image hanTurnIndicator;
 
         private float turnTimer = 60f;
         private bool isTimerRunning = true;
@@ -63,7 +59,7 @@ namespace Janggi
             {
                 int winRate = TotalGames > 0 ? Mathf.RoundToInt((float)Wins / TotalGames * 100f) : 0;
                 string drawStr = Draws > 0 ? $" {Draws}무" : "";
-                recordText.text = $"📊 {TotalGames}전 {Wins}승 {Losses}패{drawStr} ( 승률 {winRate:D2}% )";
+                recordText.text = $"{TotalGames}전 {Wins}승 {Losses}패{drawStr}\n승률 {winRate}%";
             }
         }
 
@@ -91,46 +87,41 @@ namespace Janggi
 
         private void Update()
         {
-            // 백 키 (안드로이드 이전 키 / ESC) 입력 시 앱 종료 또는 종료 확인
+            // 뒤로 가기(안드로이드)·ESC: 열린 창이 있으면 닫고, 없으면 메뉴를 엶
 #if ENABLE_INPUT_SYSTEM
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                OnExitClicked();
-            }
+            bool back = UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame;
 #else
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                OnExitClicked();
-            }
+            bool back = Input.GetKeyDown(KeyCode.Escape);
 #endif
+            if (back)
+            {
+                if (activeOverlay != null) CloseOverlay();
+                else ShowMenuSheet();
+            }
 
             GameManager gm = GameManager.Instance;
             bool humanTurn = gm == null || (gm.IsHumanTurn && !gm.IsGameOver);
 
             // AI가 생각하는 동안은 점이 움직이는 "생각 중" 표시 (타이머는 사람 차례에만 흐름)
-            if (gm != null && !gm.IsHumanTurn && !gm.IsGameOver && turnStatusText != null)
+            if (gm != null && !gm.IsHumanTurn && !gm.IsGameOver)
             {
                 int dotCount = 1 + (int)(Time.time * 2.5f) % 3;
                 if (dotCount != thinkingDots) // 점 개수가 바뀔 때만 문자열을 새로 만듦
                 {
                     thinkingDots = dotCount;
-                    string ai = gm.aiTeam == Team.Cho ? "🔵 초(楚)" : "🔴 한(漢)";
-                    turnStatusText.text = $"{ai} 생각 중{new string('.', dotCount)} · AI {gm.aiLevel}단";
-                    if (timerText != null) { timerText.text = "⏱️ --"; timerText.color = Color.yellow; }
+                    PlayerPanel ai = gm.aiTeam == Team.Cho ? choPanel : hanPanel;
+                    if (ai != null) ai.Status.text = "생각 중" + new string('.', dotCount);
+                    if (timerText != null) { timerText.text = "--"; timerText.color = TextSubColor; }
                 }
             }
             else thinkingDots = 0;
 
-            if (isTimerRunning && humanTurn && turnTimer > 0f)
+            if (isTimerRunning && humanTurn && turnTimer > 0f && timerText != null)
             {
                 turnTimer -= Time.deltaTime;
-                if (timerText != null)
-                {
-                    int sec = Mathf.CeilToInt(turnTimer);
-                    timerText.text = $"⏱️ {sec:D2}초";
-                    if (sec <= 10) timerText.color = Color.red;
-                    else timerText.color = Color.yellow;
-                }
+                int sec = Mathf.CeilToInt(turnTimer);
+                timerText.text = $"{sec}초";
+                timerText.color = sec <= 10 ? HanColor : AccentGold;
             }
 
             // 모바일 멀티터치 / 제스처 핀치 줌 & 모바일 입력 지원
@@ -155,19 +146,23 @@ namespace Janggi
         public void UpdateTurnDisplay(Team turn)
         {
             turnTimer = 60f; // 턴 전환 시 타이머 리셋
-            if (turnStatusText != null)
+            thinkingDots = 0;
+            GameManager gm = GameManager.Instance;
+            foreach (var panel in new[] { hanPanel, choPanel })
             {
-                string level = (GameManager.Instance != null) ? $" · AI {GameManager.Instance.aiLevel}단" : "";
-                turnStatusText.text = (turn == Team.Cho) ? $"🔵 초(楚) 턴{level}" : $"🔴 한(漢) 턴{level}";
-                turnStatusText.color = (turn == Team.Cho) ? new Color(0.1f, 0.6f, 1f) : new Color(1f, 0.3f, 0.3f);
+                if (panel == null) continue;
+                bool isAi = gm != null && gm.isPlayerVsAI && panel.Team == gm.aiTeam;
+                bool active = panel.Team == turn && (gm == null || !gm.IsGameOver);
+                string side = panel.Team == Team.Cho ? "초(楚)" : "한(漢)";
+                panel.Name.text = isAi ? $"{side} · AI {gm.aiLevel}단" : $"{side} · 나";
+                panel.Status.text = gm != null && gm.IsGameOver ? "대국 종료" : active ? (isAi ? "생각 중" : "내 차례") : "대기 중";
+                panel.Status.color = active ? AccentGold : TextSubColor;
+                panel.Outline.enabled = active;
             }
-
-            if (choTurnIndicator != null) choTurnIndicator.gameObject.SetActive(turn == Team.Cho);
-            if (hanTurnIndicator != null) hanTurnIndicator.gameObject.SetActive(turn == Team.Han);
+            if (passButton != null) passButton.interactable = gm == null || (gm.IsHumanTurn && !gm.IsGameOver);
         }
 
         private static Sprite cachedPillSprite;
-        private static Sprite cachedCardSprite;
 
         private Sprite GetRoundedSprite(int cornerRadius)
         {
@@ -245,131 +240,309 @@ namespace Janggi
 
             Sprite pillSprite = GetRoundedSprite(48);
 
-            // Material Design 3 Colors (Dark Elevation & Primary Accent)
-            Color m3ContainerColor = new Color(0.13f, 0.15f, 0.20f, 0.92f); // MD3 Surface Container
-            Color m3Primary = new Color(0.40f, 0.70f, 1.0f);                 // MD3 Primary Blue
-            Color m3Secondary = new Color(0.95f, 0.40f, 0.40f);               // MD3 Secondary Red
+            uiFont = hangulFont;
+            uiCanvas = canvasObj.transform;
 
-            // 1. Top Floating Material Card (중앙 플로팅 대국 상태 카드)
-            GameObject topCard = new GameObject("TopMaterialCard");
-            topCard.transform.SetParent(canvasObj.transform, false);
-            RectTransform topRect = topCard.AddComponent<RectTransform>();
-            topRect.anchorMin = new Vector2(0.5f, 1f);
-            topRect.anchorMax = new Vector2(0.5f, 1f);
-            topRect.pivot = new Vector2(0.5f, 1f);
-            topRect.anchoredPosition = new Vector2(0, -90); // 상단 노치/상태바 영역 침범 방지 Safe Area 적용
-            topRect.sizeDelta = new Vector2(880, 160); // 전적 및 차림 버튼 배치를 위한 너비 확장
+            // 위: 한(漢), 아래: 초(楚) — 장기판 방향과 같게
+            hanPanel = CreatePlayerPanel(canvasObj.transform, Team.Han, top: true);
+            choPanel = CreatePlayerPanel(canvasObj.transform, Team.Cho, top: false);
 
-            Image topBg = topCard.AddComponent<Image>();
-            topBg.sprite = pillSprite;
-            topBg.type = Image.Type.Sliced;
-            topBg.color = m3ContainerColor;
-
-            // 턴 현황
-            GameObject statusObj = new GameObject("TurnStatusText");
-            statusObj.transform.SetParent(topCard.transform, false);
-            RectTransform statusRect = statusObj.AddComponent<RectTransform>();
-            statusRect.anchoredPosition = new Vector2(-60, 36);
-            statusRect.sizeDelta = new Vector2(560, 44); // "· AI n단" 표시 공간
-
-            turnStatusText = statusObj.AddComponent<Text>();
-            turnStatusText.font = hangulFont;
-            turnStatusText.text = (GameManager.Instance != null) ? $"🔵 초(楚) 턴 · AI {GameManager.Instance.aiLevel}단" : "🔵 초(楚) 턴";
-            turnStatusText.fontSize = 32;
-            turnStatusText.fontStyle = FontStyle.Bold;
-            turnStatusText.alignment = TextAnchor.MiddleCenter;
-            turnStatusText.color = m3Primary;
-
-            // 타이머 Chip
-            GameObject timerObj = new GameObject("TimerChip");
-            timerObj.transform.SetParent(topCard.transform, false);
-            RectTransform timerRect = timerObj.AddComponent<RectTransform>();
-            timerRect.anchoredPosition = new Vector2(-220, -18);
-            timerRect.sizeDelta = new Vector2(220, 36);
-
-            timerText = timerObj.AddComponent<Text>();
-            timerText.font = hangulFont;
-            timerText.text = "⏱️ 60s";
-            timerText.fontSize = 24;
+            // 전적은 상대 패널 오른쪽, 내 남은 시간은 내 패널 오른쪽
+            recordText = CreatePanelText(hanPanel.Root, "Record", new Vector2(-28f, 0f), new Vector2(300f, 84f), 23, TextAnchor.MiddleRight, TextSubColor);
+            recordText.rectTransform.anchorMin = recordText.rectTransform.anchorMax = recordText.rectTransform.pivot = new Vector2(1f, 0.5f);
+            timerText = CreatePanelText(choPanel.Root, "Timer", new Vector2(-28f, 0f), new Vector2(200f, 84f), 40, TextAnchor.MiddleRight, AccentGold);
+            timerText.rectTransform.anchorMin = timerText.rectTransform.anchorMax = timerText.rectTransform.pivot = new Vector2(1f, 0.5f);
             timerText.fontStyle = FontStyle.Bold;
-            timerText.alignment = TextAnchor.MiddleCenter;
-            timerText.color = new Color(1.0f, 0.85f, 0.30f);
-
-            // 전적 및 승률 표시 Chip (몇전 몇승 몇패 ( 승률 00% ))
-            GameObject recordObj = new GameObject("RecordChip");
-            recordObj.transform.SetParent(topCard.transform, false);
-            RectTransform recordRect = recordObj.AddComponent<RectTransform>();
-            recordRect.anchoredPosition = new Vector2(80, -18);
-            recordRect.sizeDelta = new Vector2(380, 36);
-
-            recordText = recordObj.AddComponent<Text>();
-            recordText.font = hangulFont;
-            recordText.fontSize = 21;
-            recordText.fontStyle = FontStyle.Bold;
-            recordText.alignment = TextAnchor.MiddleCenter;
-            recordText.color = new Color(0.85f, 0.95f, 1.0f);
             UpdateRecordDisplay();
 
-            // 차림 설정 버튼 (상단 카드 우측 상단 고정 ⚙️ 차림 설정)
-            GameObject setupBtnObj = new GameObject("Btn_TopSetup");
-            setupBtnObj.transform.SetParent(topCard.transform, false);
-            RectTransform setupBtnRect = setupBtnObj.AddComponent<RectTransform>();
-            setupBtnRect.anchorMin = new Vector2(1f, 1f);
-            setupBtnRect.anchorMax = new Vector2(1f, 1f);
-            setupBtnRect.pivot = new Vector2(1f, 1f);
-            setupBtnRect.anchoredPosition = new Vector2(-20, -20);
-            setupBtnRect.sizeDelta = new Vector2(140, 54);
+            // 하단 도구 막대: 아이콘 + 글자, 화면 폭에 맞춰 4등분
+            GameObject toolbar = new GameObject("Toolbar");
+            toolbar.transform.SetParent(canvasObj.transform, false);
+            RectTransform tbRect = toolbar.AddComponent<RectTransform>();
+            tbRect.anchorMin = new Vector2(0f, 0f);
+            tbRect.anchorMax = new Vector2(1f, 0f);
+            tbRect.pivot = new Vector2(0.5f, 0f);
+            tbRect.anchoredPosition = Vector2.zero;
+            tbRect.sizeDelta = new Vector2(0f, 190f);
+            toolbar.AddComponent<Image>().color = new Color(0.07f, 0.07f, 0.09f, 0.94f);
 
-            Image setupBtnImg = setupBtnObj.AddComponent<Image>();
-            setupBtnImg.sprite = pillSprite;
-            setupBtnImg.type = Image.Type.Sliced;
-            setupBtnImg.color = new Color(0.25f, 0.35f, 0.50f, 0.95f);
+            HorizontalLayoutGroup tbLayout = toolbar.AddComponent<HorizontalLayoutGroup>();
+            tbLayout.padding = new RectOffset(16, 16, 14, 40); // 아래쪽은 제스처 내비게이션 영역 여유
+            tbLayout.spacing = 8f;
+            tbLayout.childControlWidth = true;
+            tbLayout.childControlHeight = true;
+            tbLayout.childForceExpandWidth = true;
+            tbLayout.childForceExpandHeight = true;
 
-            Button setupBtn = setupBtnObj.AddComponent<Button>();
-            setupBtn.onClick.AddListener(ShowPlacementSetupDialog);
+            CreateToolbarButton(toolbar.transform, "undo", "무르기", OnUndoClicked);
+            passButton = CreateToolbarButton(toolbar.transform, "pass", "한수 쉼", OnPassClicked);
+            CreateToolbarButton(toolbar.transform, "view", "시점", OnResetViewClicked);
+            CreateToolbarButton(toolbar.transform, "menu", "메뉴", ShowMenuSheet);
 
-            GameObject setupTxtObj = new GameObject("Label");
-            setupTxtObj.transform.SetParent(setupBtnObj.transform, false);
-            RectTransform setupTxtRect = setupTxtObj.AddComponent<RectTransform>();
-            setupTxtRect.anchorMin = Vector2.zero;
-            setupTxtRect.anchorMax = Vector2.one;
-            setupTxtRect.sizeDelta = Vector2.zero;
+            if (GameManager.Instance != null) UpdateTurnDisplay(GameManager.Instance.CurrentTurn);
+        }
 
-            Text setupTxt = setupTxtObj.AddComponent<Text>();
-            setupTxt.font = hangulFont;
-            setupTxt.text = "⚙️ 차림";
-            setupTxt.fontSize = 22;
-            setupTxt.fontStyle = FontStyle.Bold;
-            setupTxt.alignment = TextAnchor.MiddleCenter;
-            setupTxt.color = Color.white;
+        // ── 대국자 패널·도구 막대·메뉴 ─────────────────────────────
 
-            // 2. Bottom Floating Action Pill Bar (하단 6종 알약 버튼)
-            GameObject bottomBar = new GameObject("BottomNav");
-            bottomBar.transform.SetParent(canvasObj.transform, false);
-            RectTransform botRect = bottomBar.AddComponent<RectTransform>();
-            botRect.anchorMin = new Vector2(0.5f, 0f);
-            botRect.anchorMax = new Vector2(0.5f, 0f);
-            botRect.pivot = new Vector2(0.5f, 0f);
-            botRect.anchoredPosition = new Vector2(0, 60);
-            botRect.sizeDelta = new Vector2(1040, 100);
+        private static readonly Color SurfaceColor = new Color(0.11f, 0.12f, 0.15f, 1f); // 불투명: 뒤의 금색 테두리가 비치지 않게
+        private static readonly Color AccentGold = new Color(0.96f, 0.77f, 0.32f);
+        private static readonly Color TextSubColor = new Color(0.72f, 0.76f, 0.84f);
+        private static readonly Color HanColor = new Color(0.90f, 0.32f, 0.28f);
+        private static readonly Color ChoColor = new Color(0.40f, 0.62f, 1.00f);
 
-            HorizontalLayoutGroup layoutGroup = bottomBar.AddComponent<HorizontalLayoutGroup>();
-            layoutGroup.childAlignment = TextAnchor.MiddleCenter;
-            layoutGroup.spacing = 10f;
-            layoutGroup.childControlWidth = false;
-            layoutGroup.childControlHeight = false;
-            layoutGroup.childForceExpandWidth = false;
-            layoutGroup.childForceExpandHeight = false;
+        private class PlayerPanel
+        {
+            public RectTransform Root;
+            public Image Outline;
+            public Text Name;
+            public Text Status;
+            public Team Team;
+        }
 
-            float btnWidth = 158f;
-            float btnHeight = 84f;
+        private PlayerPanel hanPanel, choPanel;
+        private Button passButton;
+        private Font uiFont;
+        private Transform uiCanvas;
+        private GameObject activeOverlay; // 메뉴 시트·확인 창 (뒤로 가기 키로 닫음)
 
-            CreateMaterialPillButton(bottomBar.transform, "⚙️ 차림", Vector2.zero, new Vector2(btnWidth, btnHeight), hangulFont, pillSprite, new Color(0.25f, 0.35f, 0.50f, 0.95f), ShowPlacementSetupDialog);
-            CreateMaterialPillButton(bottomBar.transform, "⏸️ 한수 쉼", Vector2.zero, new Vector2(btnWidth, btnHeight), hangulFont, pillSprite, new Color(0.20f, 0.25f, 0.35f, 0.95f), OnPassClicked);
-            CreateMaterialPillButton(bottomBar.transform, "↩️ 물르기", Vector2.zero, new Vector2(btnWidth, btnHeight), hangulFont, pillSprite, new Color(0.20f, 0.25f, 0.35f, 0.95f), OnUndoClicked);
-            CreateMaterialPillButton(bottomBar.transform, "⟲ 시점 리셋", Vector2.zero, new Vector2(btnWidth, btnHeight), hangulFont, pillSprite, new Color(0.20f, 0.25f, 0.35f, 0.95f), OnResetViewClicked);
-            CreateMaterialPillButton(bottomBar.transform, "🏳️ 기권", Vector2.zero, new Vector2(btnWidth, btnHeight), hangulFont, pillSprite, new Color(0.42f, 0.15f, 0.18f, 0.95f), OnResignClicked);
-            CreateMaterialPillButton(bottomBar.transform, "🚪 종료", Vector2.zero, new Vector2(btnWidth, btnHeight), hangulFont, pillSprite, new Color(0.30f, 0.30f, 0.35f, 0.95f), OnExitClicked);
+        private PlayerPanel CreatePlayerPanel(Transform parent, Team team, bool top)
+        {
+            var panel = new PlayerPanel { Team = team };
+            GameObject root = new GameObject(top ? "OpponentPanel" : "MyPanel");
+            root.transform.SetParent(parent, false);
+            panel.Root = root.AddComponent<RectTransform>();
+            panel.Root.anchorMin = new Vector2(0f, top ? 1f : 0f);
+            panel.Root.anchorMax = new Vector2(1f, top ? 1f : 0f);
+            panel.Root.pivot = new Vector2(0.5f, top ? 1f : 0f);
+            panel.Root.anchoredPosition = new Vector2(0f, top ? -70f : 214f);
+            panel.Root.sizeDelta = new Vector2(-60f, 124f);
+
+            Sprite rounded = GetRoundedSprite(48);
+            // 차례 표시용 금색 테두리 (배경보다 살짝 크게, 배경 뒤에)
+            GameObject outline = new GameObject("TurnOutline");
+            outline.transform.SetParent(root.transform, false);
+            panel.Outline = outline.AddComponent<Image>();
+            panel.Outline.sprite = rounded;
+            panel.Outline.type = Image.Type.Sliced;
+            panel.Outline.color = AccentGold;
+            panel.Outline.raycastTarget = false;
+            Stretch(panel.Outline.rectTransform, 5f);
+
+            GameObject bg = new GameObject("Background");
+            bg.transform.SetParent(root.transform, false);
+            Image bgImg = bg.AddComponent<Image>();
+            bgImg.sprite = rounded;
+            bgImg.type = Image.Type.Sliced;
+            bgImg.color = SurfaceColor;
+            bgImg.raycastTarget = false;
+            Stretch(bgImg.rectTransform, 0f);
+
+            // 궁 기물 얼굴을 둥글게 잘라 프로필로 사용
+            GameObject avatarMask = new GameObject("Avatar");
+            avatarMask.transform.SetParent(root.transform, false);
+            RectTransform maskRect = avatarMask.AddComponent<RectTransform>();
+            maskRect.anchorMin = maskRect.anchorMax = maskRect.pivot = new Vector2(0f, 0.5f);
+            maskRect.anchoredPosition = new Vector2(20f, 0f);
+            maskRect.sizeDelta = new Vector2(92f, 92f);
+            Image maskImg = avatarMask.AddComponent<Image>();
+            maskImg.sprite = rounded;
+            maskImg.type = Image.Type.Sliced;
+            maskImg.raycastTarget = false;
+            avatarMask.AddComponent<Mask>().showMaskGraphic = false;
+            GameObject face = new GameObject("Face");
+            face.transform.SetParent(avatarMask.transform, false);
+            RawImage faceImg = face.AddComponent<RawImage>();
+            faceImg.texture = Resources.Load<Texture2D>($"PieceArt/{team}_King");
+            faceImg.raycastTarget = false;
+            Stretch(faceImg.rectTransform, 0f);
+
+            panel.Name = CreatePanelText(root.transform, "Name", new Vector2(132f, 20f), new Vector2(460f, 46f), 34, TextAnchor.MiddleLeft, team == Team.Han ? HanColor : ChoColor);
+            panel.Name.fontStyle = FontStyle.Bold;
+            panel.Status = CreatePanelText(root.transform, "Status", new Vector2(132f, -24f), new Vector2(460f, 38f), 25, TextAnchor.MiddleLeft, TextSubColor);
+            foreach (var t in new[] { panel.Name, panel.Status })
+                t.rectTransform.anchorMin = t.rectTransform.anchorMax = t.rectTransform.pivot = new Vector2(0f, 0.5f);
+            return panel;
+        }
+
+        private Text CreatePanelText(Transform parent, string name, Vector2 pos, Vector2 size, int fontSize, TextAnchor align, Color color)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(parent, false);
+            Text txt = obj.AddComponent<Text>();
+            txt.rectTransform.anchoredPosition = pos;
+            txt.rectTransform.sizeDelta = size;
+            txt.font = uiFont;
+            txt.fontSize = fontSize;
+            txt.alignment = align;
+            txt.color = color;
+            txt.horizontalOverflow = HorizontalWrapMode.Overflow;
+            txt.raycastTarget = false;
+            return txt;
+        }
+
+        private static void Stretch(RectTransform rect, float grow)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.sizeDelta = new Vector2(grow * 2f, grow * 2f);
+            rect.anchoredPosition = Vector2.zero;
+        }
+
+        private Button CreateToolbarButton(Transform parent, string icon, string label, UnityEngine.Events.UnityAction action)
+        {
+            GameObject btnObj = new GameObject($"Btn_{icon}");
+            btnObj.transform.SetParent(parent, false);
+            Image bg = btnObj.AddComponent<Image>();
+            bg.sprite = GetRoundedSprite(48);
+            bg.type = Image.Type.Sliced;
+            bg.color = new Color(1f, 1f, 1f, 0.06f);
+            Button btn = btnObj.AddComponent<Button>();
+            btn.targetGraphic = bg;
+            ColorBlock colors = btn.colors;
+            colors.pressedColor = new Color(1f, 1f, 1f, 3f); // 누르면 배경이 밝아짐 (tint 배율)
+            colors.disabledColor = new Color(1f, 1f, 1f, 0.3f);
+            btn.colors = colors;
+            btn.onClick.AddListener(action);
+
+            GameObject iconObj = new GameObject("Icon");
+            iconObj.transform.SetParent(btnObj.transform, false);
+            RawImage iconImg = iconObj.AddComponent<RawImage>();
+            iconImg.texture = Resources.Load<Texture2D>($"UIIcons/{icon}");
+            iconImg.raycastTarget = false;
+            RectTransform ir = iconImg.rectTransform;
+            ir.anchorMin = ir.anchorMax = new Vector2(0.5f, 1f);
+            ir.pivot = new Vector2(0.5f, 1f);
+            ir.anchoredPosition = new Vector2(0f, -14f);
+            ir.sizeDelta = new Vector2(64f, 64f);
+
+            Text txt = CreatePanelText(btnObj.transform, "Label", Vector2.zero, new Vector2(0f, 40f), 26, TextAnchor.MiddleCenter, Color.white);
+            RectTransform tr = txt.rectTransform;
+            tr.anchorMin = new Vector2(0f, 0f);
+            tr.anchorMax = new Vector2(1f, 0f);
+            tr.pivot = new Vector2(0.5f, 0f);
+            tr.anchoredPosition = new Vector2(0f, 12f);
+            txt.text = label;
+            return btn;
+        }
+
+        private GameObject CreateOverlay(string name)
+        {
+            CloseOverlay();
+            GameObject overlay = new GameObject(name);
+            overlay.transform.SetParent(uiCanvas, false);
+            Image dim = overlay.AddComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.6f);
+            Stretch(dim.rectTransform, 0f);
+            overlay.AddComponent<Button>().onClick.AddListener(CloseOverlay); // 바깥을 누르면 닫힘
+            activeOverlay = overlay;
+            return overlay;
+        }
+
+        private void CloseOverlay()
+        {
+            if (activeOverlay != null) Destroy(activeOverlay);
+            activeOverlay = null;
+        }
+
+        private RectTransform CreateCard(Transform parent, Vector2 anchor, Vector2 pos, Vector2 size)
+        {
+            GameObject card = new GameObject("Card");
+            card.transform.SetParent(parent, false);
+            Image img = card.AddComponent<Image>();
+            img.sprite = GetRoundedSprite(48);
+            img.type = Image.Type.Sliced;
+            img.color = new Color(0.14f, 0.15f, 0.19f, 0.99f);
+            card.AddComponent<Button>().transition = Selectable.Transition.None; // 카드 안을 눌러도 닫히지 않게 클릭을 막음
+            RectTransform rect = img.rectTransform;
+            rect.anchorMin = rect.anchorMax = anchor;
+            rect.pivot = anchor;
+            rect.anchoredPosition = pos;
+            rect.sizeDelta = size;
+            return rect;
+        }
+
+        private void CreateSheetRow(Transform parent, float y, string icon, string label, Color color, UnityEngine.Events.UnityAction action)
+        {
+            GameObject row = new GameObject($"Row_{icon}");
+            row.transform.SetParent(parent, false);
+            Image bg = row.AddComponent<Image>();
+            bg.sprite = GetRoundedSprite(48);
+            bg.type = Image.Type.Sliced;
+            bg.color = new Color(1f, 1f, 1f, 0.05f);
+            RectTransform rect = bg.rectTransform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = new Vector2(0f, y);
+            rect.sizeDelta = new Vector2(-48f, 112f);
+            Button btn = row.AddComponent<Button>();
+            btn.targetGraphic = bg;
+            btn.onClick.AddListener(action);
+
+            GameObject iconObj = new GameObject("Icon");
+            iconObj.transform.SetParent(row.transform, false);
+            RawImage iconImg = iconObj.AddComponent<RawImage>();
+            iconImg.texture = Resources.Load<Texture2D>($"UIIcons/{icon}");
+            iconImg.color = color;
+            iconImg.raycastTarget = false;
+            RectTransform ir = iconImg.rectTransform;
+            ir.anchorMin = ir.anchorMax = ir.pivot = new Vector2(0f, 0.5f);
+            ir.anchoredPosition = new Vector2(32f, 0f);
+            ir.sizeDelta = new Vector2(56f, 56f);
+
+            Text txt = CreatePanelText(row.transform, "Label", new Vector2(116f, 0f), new Vector2(600f, 60f), 32, TextAnchor.MiddleLeft, color);
+            txt.rectTransform.anchorMin = txt.rectTransform.anchorMax = txt.rectTransform.pivot = new Vector2(0f, 0.5f);
+            txt.text = label;
+        }
+
+        private void ShowMenuSheet()
+        {
+            GameObject overlay = CreateOverlay("MenuSheet");
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 520f));
+            // 화면 폭에 맞춰 늘어나게 (캔버스 폭은 기기 비율에 따라 1080보다 좁을 수 있음)
+            sheet.anchorMin = new Vector2(0f, 0f);
+            sheet.anchorMax = new Vector2(1f, 0f);
+            sheet.sizeDelta = new Vector2(-32f, 520f);
+
+            Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
+            title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
+            title.fontStyle = FontStyle.Bold;
+            title.text = "메뉴";
+
+            CreateSheetRow(sheet, -100f, "new_game", "새 대국 · 차림과 AI 수준", Color.white, () => { CloseOverlay(); ShowPlacementSetupDialog(); });
+            CreateSheetRow(sheet, -224f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
+            CreateSheetRow(sheet, -348f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "진행 중인 대국은 저장되지 않습니다.", "나가기", OnExitClicked));
+        }
+
+        private void ShowConfirm(string title, string message, string confirmLabel, UnityEngine.Events.UnityAction onConfirm)
+        {
+            GameObject overlay = CreateOverlay("ConfirmDialog");
+            RectTransform card = CreateCard(overlay.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(820f, 420f));
+
+            Text t = CreatePanelText(card, "Title", new Vector2(0f, 110f), new Vector2(740f, 60f), 38, TextAnchor.MiddleCenter, Color.white);
+            t.fontStyle = FontStyle.Bold;
+            t.text = title;
+            Text m = CreatePanelText(card, "Message", new Vector2(0f, 30f), new Vector2(740f, 60f), 27, TextAnchor.MiddleCenter, TextSubColor);
+            m.text = message;
+
+            CreateDialogButton(card, new Vector2(-190f, -120f), "취소", new Color(0.26f, 0.28f, 0.34f), CloseOverlay);
+            CreateDialogButton(card, new Vector2(190f, -120f), confirmLabel, new Color(0.72f, 0.22f, 0.20f), () => { CloseOverlay(); onConfirm(); });
+        }
+
+        private void CreateDialogButton(Transform parent, Vector2 pos, string label, Color color, UnityEngine.Events.UnityAction action)
+        {
+            GameObject obj = new GameObject($"Btn_{label}");
+            obj.transform.SetParent(parent, false);
+            Image img = obj.AddComponent<Image>();
+            img.sprite = GetRoundedSprite(48);
+            img.type = Image.Type.Sliced;
+            img.color = color;
+            img.rectTransform.anchoredPosition = pos;
+            img.rectTransform.sizeDelta = new Vector2(340f, 104f);
+            obj.AddComponent<Button>().onClick.AddListener(action);
+            Text txt = CreatePanelText(obj.transform, "Label", Vector2.zero, new Vector2(340f, 104f), 32, TextAnchor.MiddleCenter, Color.white);
+            txt.fontStyle = FontStyle.Bold;
+            txt.text = label;
         }
 
         public void ShowPlacementSetupDialog()
@@ -656,63 +829,6 @@ namespace Janggi
             }
         }
 
-        private void CreateMaterialPillButton(Transform parent, string label, Vector2 pos, Vector2 size, Font font, Sprite pillSprite, Color bgColor, UnityEngine.Events.UnityAction action)
-        {
-            GameObject btnObj = new GameObject($"Btn_{label}");
-            btnObj.transform.SetParent(parent, false);
-
-            RectTransform rect = btnObj.AddComponent<RectTransform>();
-            rect.anchoredPosition = pos;
-            rect.sizeDelta = size;
-
-            Image img = btnObj.AddComponent<Image>();
-            img.sprite = pillSprite;
-            img.type = Image.Type.Sliced;
-            img.color = bgColor;
-
-            Button btn = btnObj.AddComponent<Button>();
-            btn.onClick.AddListener(action);
-
-            GameObject txtObj = new GameObject("Label");
-            txtObj.transform.SetParent(btnObj.transform, false);
-            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.sizeDelta = Vector2.zero;
-
-            Text txt = txtObj.AddComponent<Text>();
-            txt.font = font;
-            txt.text = label;
-            txt.fontSize = 30;
-            txt.resizeTextForBestFit = true;
-            txt.resizeTextMinSize = 18;
-            txt.resizeTextMaxSize = 32;
-            txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.color = Color.white;
-        }
-
-        private void CreateMaterialProfileCard(Transform parent, string name, Vector2 pos, Vector2 anchor, Font font, Color badgeColor)
-        {
-            GameObject profile = new GameObject(name);
-            profile.transform.SetParent(parent, false);
-
-            RectTransform rect = profile.AddComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = anchor;
-            rect.anchoredPosition = pos;
-            rect.sizeDelta = new Vector2(260, 80);
-
-            Text txt = profile.AddComponent<Text>();
-            txt.font = font;
-            txt.text = name;
-            txt.fontSize = 26;
-            txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleLeft;
-            txt.color = Color.white;
-        }
-
         private void CreateMaterialButton(Transform parent, string label, Vector2 pos, Vector2 size, Font font, Color bgColor, UnityEngine.Events.UnityAction action)
         {
             GameObject btnObj = new GameObject($"Btn_{label}");
@@ -760,7 +876,7 @@ namespace Janggi
                 bool success = GameManager.Instance.UndoMove();
                 if (success)
                 {
-                    Debug.Log("물르기 완료");
+                    Debug.Log("무르기 완료");
                 }
             }
         }

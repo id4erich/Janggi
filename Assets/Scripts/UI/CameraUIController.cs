@@ -12,13 +12,17 @@ namespace Janggi
         public float zoomSpeed = 2.0f;
         public float rotateSpeed = 45.0f;
 
-        [Tooltip("기본 시점 각도. 90이면 바로 위, 작을수록 비스듬히 내려다봐 기물 두께가 보임")]
-        public float defaultPitch = 68.0f;
-        [Tooltip("세로 시야각. 좁을수록 원근 왜곡이 줄어 판이 화면에 크게 들어옴")]
-        public float defaultFieldOfView = 38.0f;
+        [Tooltip("기본 시점: 바로 위(90도)에서 좁은 시야각으로 내려다봐 판이 반듯한 직사각형으로 화면 폭을 채움")]
+        public float defaultPitch = 90.0f;
+        public float defaultFieldOfView = 24.0f;
+        [Tooltip("'시점' 버튼으로 전환하는 비스듬한 입체 시점")]
+        public float tiltedPitch = 60.0f;
+        public float tiltedFieldOfView = 38.0f;
+        // 위 대국자 패널(약 10%)보다 아래 패널+도구 막대(약 17.6%)가 높아서, 판을 그 차이의 절반만큼 위로 올려 가운데에 둠
+        private const float UiCenterOffset = 0.038f;
         public static readonly Color BackgroundColor = new Color(0.13f, 0.10f, 0.08f); // 탁자 너머 어두운 방
 
-        private float currentPitch = 68.0f;
+        private float currentPitch = 90.0f;
         private float currentYaw = 0.0f;
         private Vector3 targetLookAt = new Vector3(0f, 0f, 0f);
         private float distance = 11.2f;
@@ -82,8 +86,9 @@ namespace Janggi
             // 정사영/직교 거리 연산 (FOV 60도 기준 좌우 폭 꽉 채움)
             if (aspect > 0.01f)
             {
-                // 장기판 좌우 끝(x=-4.8~4.8)을 절묘하게 꽉 채우는 타겟 거리
-                targetDistance = 5.2f / (Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect);
+                // 장기판 좌우 끝을 꽉 채우는 거리 (판 폭 9.52, 바로 위 시점은 여백을 최소로)
+                bool topDown = currentPitch >= 89f;
+                targetDistance = (topDown ? 4.9f : 5.2f) / (Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect);
                 // 비스듬히 볼 때는 가까운 쪽 판 가장자리가 더 넓게 보이므로 그만큼 물러남
                 float fovRatio = Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Tan(30f * Mathf.Deg2Rad);
                 targetDistance *= 1f + Mathf.Cos(currentPitch * Mathf.Deg2Rad) * 0.25f * fovRatio;
@@ -91,8 +96,11 @@ namespace Janggi
 
             Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0f);
             Vector3 dir = rot * new Vector3(0, 0, -targetDistance);
-            mainCamera.transform.position = targetLookAt + dir;
-            mainCamera.transform.LookAt(targetLookAt);
+            Vector3 lookAt = targetLookAt;
+            if (currentPitch >= 89f)
+                lookAt.z -= UiCenterOffset * 2f * targetDistance * Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            mainCamera.transform.position = lookAt + dir;
+            mainCamera.transform.rotation = rot; // 바로 위에서도 화면 위쪽이 한(漢) 진영이 되도록 LookAt 대신 회전 직접 지정
         }
 
         public void MoveUp() { targetLookAt += mainCamera.transform.up * 1.5f; UpdateCameraTransform(); }
@@ -108,7 +116,8 @@ namespace Janggi
         {
             bool atDefault = targetLookAt == Vector3.zero && Mathf.Approximately(currentYaw, 0f) && Mathf.Approximately(currentPitch, defaultPitch);
             targetLookAt = new Vector3(0f, 0f, 0f);
-            currentPitch = atDefault ? 90.0f : defaultPitch;
+            currentPitch = atDefault ? tiltedPitch : defaultPitch;
+            mainCamera.fieldOfView = atDefault ? tiltedFieldOfView : defaultFieldOfView;
             currentYaw = 0.0f;
             distance = 18.5f;
             UpdateCameraTransform();

@@ -12,7 +12,8 @@ A Korean chess (janggi) app built with Unity. It targets Android (arm64) and use
   - Pass, undo, resign
 - Four Horse/Elephant setups, chosen separately for each side (Cho and Han)
 - AI levels 1–9 (dan). Uses Fairy-Stockfish; falls back to a built-in alpha-beta AI if the engine cannot be started
-- 3D presentation: chamfered octagonal boxwood pieces with engraved brush-script characters, a wood-grain board, an angled camera (the "reset view" button toggles to a top-down view), and soft shadows
+- 3D presentation: chamfered octagonal boxwood pieces with engraved brush-script characters, a wood-grain board, a top-down view that fills the screen width (the "view" button switches to an angled 3D view), and soft shadows
+- Player panels for both sides (turn highlight, AI level, remaining time, record) and a bottom toolbar (undo, pass, view, menu); resign and quit are in the menu and ask for confirmation
 - Captured pieces are lined up on the table beside the board (pieces captured by Cho at the bottom, by Han at the top)
 - Voice lines (such as "Janggun!", the call for check) are spoken with the device's built-in TextToSpeech (works offline)
 

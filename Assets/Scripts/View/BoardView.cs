@@ -324,13 +324,13 @@ namespace Janggi
             float height = 0.25f; // 입체 3D 조각판 두께감 강화
             switch (type)
             {
-                case PieceType.King: radius = 0.48f; height = 0.32f; break; // 궁: 우뚝 솟은 3D 8각
+                case PieceType.King: radius = 0.50f; height = 0.32f; break; // 궁: 우뚝 솟은 3D 8각
                 case PieceType.Car:
-                case PieceType.Cannon: radius = 0.43f; height = 0.28f; break;
+                case PieceType.Cannon: radius = 0.47f; height = 0.28f; break;
                 case PieceType.Horse:
-                case PieceType.Elephant: radius = 0.40f; height = 0.25f; break;
+                case PieceType.Elephant: radius = 0.44f; height = 0.25f; break;
                 case PieceType.Guard:
-                case PieceType.Pawn: radius = 0.35f; height = 0.22f; break;
+                case PieceType.Pawn: radius = 0.385f; height = 0.22f; break;
             }
 
             // 2. 8각 3D 조각판 부착
