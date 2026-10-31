@@ -1,89 +1,82 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Janggi
 {
     public static class JanggiMeshGenerator
     {
+        // 윗면 테두리를 비스듬히 깎은(모따기) 8각 장기말.
+        // Submesh 0: 모따기·옆면·밑면(나뭇결), Submesh 1: 윗면(글자 텍스처가 윗면 8각에 꽉 차게 UV 배치)
         public static Mesh CreateOctagonalPieceMesh(float radius, float height)
         {
-            Mesh mesh = new Mesh();
-            mesh.name = "OctagonalJanggiPiece";
+            const int sides = 8;
+            float chamfer = Mathf.Min(height * 0.3f, radius * 0.12f);
+            float topY = height * 0.5f, chamferY = topY - chamfer, bottomY = -height * 0.5f;
+            float innerR = radius - chamfer;
 
-            int sides = 8;
-            Vector3[] vertices = new Vector3[sides * 4];
-            Vector2[] uvs = new Vector2[sides * 4];
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var top = new List<int>();
+            var body = new List<int>();
 
-            int[] topTriangles = new int[(sides - 2) * 3];
-            int[] sideBottomTriangles = new int[(sides - 2) * 3 + sides * 6];
+            Vector3 Ring(float r, float y, int i)
+            {
+                float a = i * Mathf.PI * 2f / sides + Mathf.PI / 8f; // 정8각형 배치
+                return new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+            }
 
-            float angleOffset = Mathf.PI / 8f; // 정8각형 배치
-
+            // 윗면: 중심 + 8각 (면마다 정점을 따로 두어 각진 면 법선을 유지)
+            int topCenter = vertices.Count;
+            vertices.Add(new Vector3(0f, topY, 0f)); uvs.Add(new Vector2(0.5f, 0.5f));
             for (int i = 0; i < sides; i++)
             {
-                float angle = i * Mathf.PI * 2f / sides + angleOffset;
-                float cos = Mathf.Cos(angle);
-                float sin = Mathf.Sin(angle);
-
-                // Top (0..7)
-                vertices[i] = new Vector3(cos * radius, height * 0.5f, sin * radius);
-                uvs[i] = new Vector2(0.5f + cos * 0.5f, 0.5f + sin * 0.5f);
-
-                // Bottom (8..15)
-                vertices[i + sides] = new Vector3(cos * radius, -height * 0.5f, sin * radius);
-                uvs[i + sides] = new Vector2(0.5f + cos * 0.5f, 0.5f + sin * 0.5f);
-
-                // Side Top (16..23)
-                vertices[i + sides * 2] = new Vector3(cos * radius, height * 0.5f, sin * radius);
-                uvs[i + sides * 2] = new Vector2((float)i / sides, 1f);
-
-                // Side Bottom (24..31)
-                vertices[i + sides * 3] = new Vector3(cos * radius, -height * 0.5f, sin * radius);
-                uvs[i + sides * 3] = new Vector2((float)i / sides, 0f);
-            }
-
-            // Top Face Submesh
-            int topIdx = 0;
-            for (int i = 1; i < sides - 1; i++)
-            {
-                topTriangles[topIdx++] = 0;
-                topTriangles[topIdx++] = i + 1;
-                topTriangles[topIdx++] = i;
-            }
-
-            // Side & Bottom Submesh
-            int sideIdx = 0;
-            for (int i = 1; i < sides - 1; i++)
-            {
-                sideBottomTriangles[sideIdx++] = sides;
-                sideBottomTriangles[sideIdx++] = sides + i;
-                sideBottomTriangles[sideIdx++] = sides + i + 1;
+                Vector3 v = Ring(innerR, topY, i);
+                vertices.Add(v); uvs.Add(new Vector2(0.5f + v.x / innerR * 0.5f, 0.5f + v.z / innerR * 0.5f));
             }
             for (int i = 0; i < sides; i++)
             {
-                int next = (i + 1) % sides;
-                int topCurr = sides * 2 + i;
-                int topNext = sides * 2 + next;
-                int botCurr = sides * 3 + i;
-                int botNext = sides * 3 + next;
-
-                sideBottomTriangles[sideIdx++] = topCurr;
-                sideBottomTriangles[sideIdx++] = topNext;
-                sideBottomTriangles[sideIdx++] = botCurr;
-
-                sideBottomTriangles[sideIdx++] = topNext;
-                sideBottomTriangles[sideIdx++] = botNext;
-                sideBottomTriangles[sideIdx++] = botCurr;
+                top.Add(topCenter); top.Add(topCenter + 1 + (i + 1) % sides); top.Add(topCenter + 1 + i);
             }
 
-            mesh.vertices = vertices;
-            mesh.uv = uvs;
+            // 모따기 띠와 옆면: 위쪽 링 → 아래쪽 링 사각형 8개
+            void Band(float rUpper, float yUpper, float rLower, float yLower, float vUpper, float vLower)
+            {
+                for (int i = 0; i < sides; i++)
+                {
+                    int b = vertices.Count;
+                    vertices.Add(Ring(rUpper, yUpper, i)); uvs.Add(new Vector2((float)i / sides, vUpper));
+                    vertices.Add(Ring(rUpper, yUpper, i + 1)); uvs.Add(new Vector2((float)(i + 1) / sides, vUpper));
+                    vertices.Add(Ring(rLower, yLower, i)); uvs.Add(new Vector2((float)i / sides, vLower));
+                    vertices.Add(Ring(rLower, yLower, i + 1)); uvs.Add(new Vector2((float)(i + 1) / sides, vLower));
+                    body.Add(b); body.Add(b + 1); body.Add(b + 2);
+                    body.Add(b + 1); body.Add(b + 3); body.Add(b + 2);
+                }
+            }
+            Band(innerR, topY, radius, chamferY, 1f, 0.9f);
+            Band(radius, chamferY, radius, bottomY, 0.9f, 0f);
+
+            // 밑면
+            int bottomCenter = vertices.Count;
+            vertices.Add(new Vector3(0f, bottomY, 0f)); uvs.Add(new Vector2(0.5f, 0.5f));
+            for (int i = 0; i < sides; i++)
+            {
+                Vector3 v = Ring(radius, bottomY, i);
+                vertices.Add(v); uvs.Add(new Vector2(0.5f + v.x / radius * 0.5f, 0.5f + v.z / radius * 0.5f));
+            }
+            for (int i = 0; i < sides; i++)
+            {
+                body.Add(bottomCenter); body.Add(bottomCenter + 1 + i); body.Add(bottomCenter + 1 + (i + 1) % sides);
+            }
+
+            Mesh mesh = new Mesh { name = "OctagonalJanggiPiece" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
             mesh.subMeshCount = 2;
-            mesh.SetTriangles(sideBottomTriangles, 0); // Submesh 0: 옆면 & 밑면
-            mesh.SetTriangles(topTriangles, 1);         // Submesh 1: 윗면 표면
-
+            mesh.SetTriangles(body, 0);
+            mesh.SetTriangles(top, 1);
             mesh.RecalculateNormals();
+            mesh.RecalculateTangents(); // 윗면 음각 노멀맵용
             mesh.RecalculateBounds();
-
             return mesh;
         }
 

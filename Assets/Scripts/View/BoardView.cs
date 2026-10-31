@@ -206,6 +206,31 @@ namespace Janggi
             }
         }
 
+        // 회양목 장기말 재질: 윗면은 음각 붓글씨(Tools/PieceArt/bake_piece_textures.py로 생성), 옆면은 나뭇결.
+        // Resources의 템플릿 재질을 복제해 _NORMALMAP 셰이더 변형이 빌드에서 빠지지 않게 함
+        private static readonly Dictionary<string, Material[]> pieceMaterialCache = new Dictionary<string, Material[]>();
+        private static Material pieceSideMaterial;
+
+        private static Material[] GetPieceMaterials(Team team, PieceType type)
+        {
+            string key = $"{team}_{type}";
+            if (pieceMaterialCache.TryGetValue(key, out Material[] mats)) return mats;
+
+            if (pieceSideMaterial == null)
+            {
+                pieceSideMaterial = new Material(Resources.Load<Material>("PieceArt/PieceSide"));
+                pieceSideMaterial.SetTexture("_BaseMap", Resources.Load<Texture2D>("PieceArt/wood_side"));
+            }
+
+            Material topMat = new Material(Resources.Load<Material>("PieceArt/PieceTop"));
+            topMat.SetTexture("_BaseMap", Resources.Load<Texture2D>($"PieceArt/{key}"));
+            topMat.SetTexture("_BumpMap", Resources.Load<Texture2D>($"PieceArt/{key}_n"));
+
+            mats = new[] { pieceSideMaterial, topMat };
+            pieceMaterialCache[key] = mats;
+            return mats;
+        }
+
         private void CreatePieceObject(PieceData data)
         {
             GameObject obj = new GameObject($"{data.Team}_{data.Type}_({data.Position.x},{data.Position.y})");
@@ -230,18 +255,7 @@ namespace Janggi
             mf.mesh = JanggiMeshGenerator.CreateOctagonalPieceMesh(radius, height);
 
             MeshRenderer ren = obj.AddComponent<MeshRenderer>();
-            
-            // URP / Standard 호환 3D 입체 셰이더 선택 (핑크 핑크 에러 방지)
-            Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-            if (litShader == null) litShader = Shader.Find("Standard");
-
-            Material sideMat = new Material(litShader);
-            sideMat.color = new Color(0.70f, 0.80f, 0.95f); // 아이스 블루 3D 옆면
-
-            Material topMat = new Material(litShader);
-            topMat.color = new Color(0.97f, 0.97f, 0.98f); // 맑은 상아색 윗면
-
-            ren.materials = new Material[] { sideMat, topMat };
+            ren.sharedMaterials = GetPieceMaterials(data.Team, data.Type);
 
             // 그림자 투사(Shadow Casting) 및 수신 설정
             ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
@@ -250,80 +264,6 @@ namespace Janggi
             // 콜라이더 생성
             BoxCollider boxCol = obj.AddComponent<BoxCollider>();
             boxCol.size = new Vector3(radius * 2f, height, radius * 2f);
-
-            // 3. 3D 한자(漢字) 음각 3중 조각 효과 (졸, 병, 사 글자는 Bold 강인한 굵은 서체 적용)
-            Font gungsuhFont = Font.CreateDynamicFontFromOSFont("Gungsuh", 64);
-            Font gungsuhBoldFont = Font.CreateDynamicFontFromOSFont("Gungsuh", 64);
-            if (gungsuhBoldFont == null) gungsuhBoldFont = gungsuhFont;
-
-            bool isSmallBoldPiece = (data.Type == PieceType.Pawn || data.Type == PieceType.Guard);
-            Font targetFont = isSmallBoldPiece ? gungsuhBoldFont : gungsuhFont;
-            FontStyle targetStyle = isSmallBoldPiece ? FontStyle.Bold : FontStyle.Normal;
-
-            // 짙고 선명한 남청색(Cho) / 짙은 선홍 핏빛 붉은색(Han)
-            Color textHanjaColor = (data.Team == Team.Cho) 
-                ? new Color(0.0f, 0.12f, 0.60f)   // 짙은 남청색 (Deep Navy Blue)
-                : new Color(0.70f, 0.02f, 0.05f);  // 짙은 핏빛 붉은색 (Deep Crimson Red)
-
-            Color innerShadowColor = new Color(0.0f, 0.0f, 0.0f, 0.85f);  // 음각 홈 내부 짙은 그림자
-            Color rimHighlightColor = new Color(1.0f, 1.0f, 1.0f, 0.90f); // 음각 홈 테두리 하이라이트
-
-            // 졸(Pawn) 및 사(Guard) 2/3 축소(0.058f), 그 외 주요 기물(궁, 차, 포, 마, 상)은 원위치 크기(0.090f)
-            float baseCharSize = (data.Type == PieceType.Pawn || data.Type == PieceType.Guard) ? 0.058f : 0.090f;
-
-            // 음각 층 1: 깎여진 상단 입구 빛 하이라이트 림 (Top Carved Bevel Highlight)
-            GameObject bevelObj = new GameObject("HanjaCarvedHighlight");
-            bevelObj.transform.SetParent(obj.transform);
-            bevelObj.transform.localPosition = new Vector3(-0.005f, height * 0.5f + 0.002f, 0.005f);
-            bevelObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            bevelObj.transform.localScale = Vector3.one;
-
-            TextMesh bevelMesh = bevelObj.AddComponent<TextMesh>();
-            if (targetFont != null) bevelMesh.font = targetFont;
-            bevelObj.GetComponent<MeshRenderer>().material = targetFont.material;
-            bevelMesh.text = PieceHelper.GetHanja(data.Type, data.Team);
-            bevelMesh.characterSize = baseCharSize * 1.02f;
-            bevelMesh.fontSize = 64;
-            bevelMesh.anchor = TextAnchor.MiddleCenter;
-            bevelMesh.alignment = TextAlignment.Center;
-            bevelMesh.fontStyle = targetStyle;
-            bevelMesh.color = rimHighlightColor;
-
-            // 음각 층 2: 깊은 파임 안쪽 그림자 층 (Deep Inset Shadow)
-            GameObject shadowObj = new GameObject("HanjaEngravedShadow");
-            shadowObj.transform.SetParent(obj.transform);
-            shadowObj.transform.localPosition = new Vector3(0.006f, height * 0.5f + 0.001f, -0.006f);
-            shadowObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            shadowObj.transform.localScale = Vector3.one;
-
-            TextMesh shadowMesh = shadowObj.AddComponent<TextMesh>();
-            if (targetFont != null) shadowMesh.font = targetFont;
-            shadowObj.GetComponent<MeshRenderer>().material = targetFont.material;
-            shadowMesh.text = PieceHelper.GetHanja(data.Type, data.Team);
-            shadowMesh.characterSize = baseCharSize * 1.02f;
-            shadowMesh.fontSize = 64;
-            shadowMesh.anchor = TextAnchor.MiddleCenter;
-            shadowMesh.alignment = TextAlignment.Center;
-            shadowMesh.fontStyle = targetStyle;
-            shadowMesh.color = innerShadowColor;
-
-            // 음각 층 3: 파인 홈 바닥의 먹물 칠 층 (Inset Carved Ink Bottom)
-            GameObject textObj = new GameObject("HanjaTextMain");
-            textObj.transform.SetParent(obj.transform);
-            textObj.transform.localPosition = new Vector3(0f, height * 0.5f + 0.005f, 0f);
-            textObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            textObj.transform.localScale = Vector3.one;
-
-            TextMesh textMesh = textObj.AddComponent<TextMesh>();
-            if (targetFont != null) textMesh.font = targetFont;
-            textObj.GetComponent<MeshRenderer>().material = targetFont.material;
-            textMesh.text = PieceHelper.GetHanja(data.Type, data.Team);
-            textMesh.characterSize = baseCharSize;
-            textMesh.fontSize = 64;
-            textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.alignment = TextAlignment.Center;
-            textMesh.fontStyle = targetStyle;
-            textMesh.color = textHanjaColor;
 
             pieceRenderers[data.Position] = obj;
         }
