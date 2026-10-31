@@ -10,7 +10,9 @@ Unity로 만든 한국 장기 앱입니다. Android(arm64)용으로 빌드하며
   - 한수 쉼, 무르기, 기권
 - 마상 차림 4종 선택(초·한 각각)
 - AI 1~9단: Fairy-Stockfish를 쓰고, 엔진을 실행할 수 없으면 내장 알파베타 AI로 대체
-- 3D 화면: 모따기한 8각 회양목 기물, 음각 붓글씨, 나뭇결 장기판, 비스듬한 시점, 부드러운 그림자
+- 3D 화면: 모따기한 8각 회양목 기물, 음각 붓글씨, 나뭇결 장기판, 비스듬한 시점(시점 리셋으로 바로 위 시점과 전환), 부드러운 그림자
+- 잡은 말은 판 옆 탁자에 진열(초가 잡은 말은 아래쪽, 한이 잡은 말은 위쪽)
+- 음성 대사("장이야!" 등)는 기기에 내장된 TextToSpeech로 재생(오프라인)
 
 ## 폴더 구조
 
@@ -22,6 +24,7 @@ Unity로 만든 한국 장기 앱입니다. Android(arm64)용으로 빌드하며
 | `Assets/Scripts/UI` | 모바일 UI, 카메라 |
 | `Assets/Scripts/Editor` | APK 빌드 메뉴, EditMode 테스트 |
 | `Assets/Plugins/Android/libs/arm64-v8a` | Android용 Fairy-Stockfish 실행 파일 |
+| `Assets/Plugins/Android/AndroidManifest.xml` | 커스텀 메인 매니페스트(기본 구성 + Android 11 이상에서 TTS 엔진 조회 선언) |
 | `Assets/Resources/PieceArt`, `BoardArt` | 미리 구운 기물·장기판 텍스처와 재질 |
 | `Tools/FairyStockfish` | PC용 엔진, AI 단 보정 스크립트 |
 | `Tools/PieceArt` | 기물·장기판 텍스처를 굽는 스크립트 |
