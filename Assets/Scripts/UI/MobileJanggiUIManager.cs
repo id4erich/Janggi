@@ -181,6 +181,7 @@ namespace Janggi
             bool humanCanAct = gm == null || (gm.IsHumanTurn && !gm.IsGameOver);
             if (passButton != null) passButton.interactable = humanCanAct;
             if (hintButton != null) hintButton.interactable = humanCanAct;
+            if (undoButton != null) undoButton.interactable = gm == null || gm.CanUndo;
         }
 
         private static Sprite cachedPillSprite;
@@ -297,7 +298,7 @@ namespace Janggi
             tbLayout.childForceExpandWidth = true;
             tbLayout.childForceExpandHeight = true;
 
-            CreateToolbarButton(toolbar.transform, "undo", "무르기", OnUndoClicked);
+            undoButton = CreateToolbarButton(toolbar.transform, "undo", "무르기", OnUndoClicked);
             passButton = CreateToolbarButton(toolbar.transform, "pass", "한수 쉼", OnPassClicked);
             hintButton = CreateToolbarButton(toolbar.transform, "hint", "힌트", OnHintClicked);
             CreateToolbarButton(toolbar.transform, "view", "시점", OnResetViewClicked);

@@ -103,6 +103,16 @@ namespace Janggi.Tests
         }
 
         [Test]
+        public void CanUndo_FalseWhenOnlyAiHasMoved()
+        {
+            gm.ApplyMode(GameManager.GameMode.VsAiAsHan); // AI가 초(선공)
+            Assert.IsFalse(gm.CanUndo);
+            Assert.IsTrue(gm.MakeMove(new BoardPos(0, 3), new BoardPos(1, 3))); // AI(초)의 첫 수
+            Assert.IsFalse(gm.CanUndo);
+            Assert.IsFalse(gm.UndoMove());
+        }
+
+        [Test]
         public void NewGame_ClearsUndoHistory()
         {
             Assert.IsTrue(gm.MakeMove(new BoardPos(0, 3), new BoardPos(0, 4)));

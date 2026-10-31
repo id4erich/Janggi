@@ -26,7 +26,7 @@ namespace Janggi
         }
 
         private PlayerPanel hanPanel, choPanel;
-        private Button passButton, hintButton;
+        private Button passButton, hintButton, undoButton;
         private Font uiFont;
         private Transform uiCanvas;
         private GameObject activeOverlay; // 메뉴 시트·확인 창 (뒤로 가기 키로 닫음)

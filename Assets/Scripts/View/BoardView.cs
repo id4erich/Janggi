@@ -441,10 +441,21 @@ namespace Janggi
             }
         }
 
+        private float lastBlockedToastTime = -10f;
+
         private void OnCellClicked(BoardPos pos)
         {
-            if (GameManager.Instance.CurrentTurn == GameManager.Instance.aiTeam && GameManager.Instance.isPlayerVsAI)
+            GameManager gm = GameManager.Instance;
+            if (gm.IsGameOver || !gm.IsHumanTurn)
+            {
+                // 판을 눌러도 반응이 없는 이유를 알려 줌 (연타 시 1.5초에 한 번만)
+                if (Time.time - lastBlockedToastTime > 1.5f && MobileJanggiUIManager.Instance != null)
+                {
+                    lastBlockedToastTime = Time.time;
+                    MobileJanggiUIManager.Instance.ShowToast(gm.IsGameOver ? "대국이 끝났습니다 · 메뉴에서 새 대국" : "AI가 생각 중입니다");
+                }
                 return;
+            }
 
             PieceData clickedPiece = GameManager.Instance.Board[pos.x, pos.y];
 

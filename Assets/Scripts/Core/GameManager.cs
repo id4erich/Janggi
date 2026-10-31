@@ -419,9 +419,21 @@ namespace Janggi
             PersistGame();
         }
 
+        // 되돌릴 사람의 수가 있을 때만 (AI가 먼저 둔 첫 수만 있으면 되돌려도 AI가 다시 둘 뿐)
+        public bool CanUndo
+        {
+            get
+            {
+                if (IsGameOver) return false;
+                foreach (var r in historyStack)
+                    if (!isPlayerVsAI || r.Mover != aiTeam) return true;
+                return false;
+            }
+        }
+
         public bool UndoMove()
         {
-            if (IsGameOver || historyStack.Count == 0) return false;
+            if (!CanUndo) return false;
 
             // AI가 아직 두기 전이면 대기 중인 AI 차례(와 힌트 계산)를 취소
             StopAiRoutines();
