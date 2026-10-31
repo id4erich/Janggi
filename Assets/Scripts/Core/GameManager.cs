@@ -86,9 +86,18 @@ namespace Janggi
 
                 // 앱이 꺼졌다 켜지면 두던 대국을 이어 둠
                 string saved = PlayerPrefs.GetString(KeySavedGame, "");
-                if (saved.Length > 0 && !LoadFromJson(saved))
+                bool loaded = false;
+                if (saved.Length > 0)
+                {
+                    try { loaded = LoadFromJson(saved); }
+                    catch (Exception e) { Debug.LogWarning($"저장된 대국을 불러오지 못함: {e.Message}"); }
+                }
+                if (saved.Length > 0 && !loaded)
                 {
                     PlayerPrefs.DeleteKey(KeySavedGame);
+                    choPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Cho_Placement", (int)PlacementType.MaSangMaSang);
+                    hanPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Han_Placement", (int)PlacementType.MaSangMaSang);
+                    ApplyMode((GameMode)PlayerPrefs.GetInt(KeyGameMode, (int)GameMode.VsAiAsCho));
                     InitializeBoard(choPlacement, hanPlacement);
                 }
             }
@@ -108,6 +117,7 @@ namespace Janggi
             hanPlacement = han;
             InitializeBoard(choPlacement, hanPlacement);
             PersistGame();
+            if (!IsHumanTurn) aiRoutine = StartCoroutine(ProcessAITurn()); // AI가 초(선공)일 때
         }
 
         private void StopAiRoutines()
@@ -161,6 +171,7 @@ namespace Janggi
                         continue;
                     }
                     int from = m % 100, to = m / 100;
+                    if (from >= 90 || to >= 90) return false; // 판 밖 좌표 = 손상된 저장값
                     if (!MakeMove(new BoardPos(from % 9, from / 9), new BoardPos(to % 9, to / 9))) return false;
                 }
             }

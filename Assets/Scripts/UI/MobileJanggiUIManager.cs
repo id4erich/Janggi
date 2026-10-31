@@ -104,6 +104,7 @@ namespace Janggi
             if (back)
             {
                 if (activeOverlay != null) CloseOverlay();
+                else if (setupDialog != null) Destroy(setupDialog);
                 else ShowMenuSheet();
             }
 
@@ -124,7 +125,8 @@ namespace Janggi
             }
             else thinkingDots = 0;
 
-            if (isTimerRunning && humanTurn && timerText != null)
+            // 메뉴·기보·설정 창을 보는 동안은 제한 시간이 흐르지 않음
+            if (isTimerRunning && humanTurn && timerText != null && activeOverlay == null && setupDialog == null)
             {
                 if (gm == null || gm.moveTimeLimitSec <= 0)
                 {
@@ -153,7 +155,7 @@ namespace Janggi
                 float delta = currDist - prevDist;
                 if (Camera.main != null)
                 {
-                    Camera.main.fieldOfView = Mathf.Clamp(Camera.main.fieldOfView - delta * 0.05f, 30f, 75f);
+                    Camera.main.fieldOfView = Mathf.Clamp(Camera.main.fieldOfView - delta * 0.05f, 12f, 60f);
                 }
             }
 #endif
@@ -325,6 +327,7 @@ namespace Janggi
         private Font uiFont;
         private Transform uiCanvas;
         private GameObject activeOverlay; // 메뉴 시트·확인 창 (뒤로 가기 키로 닫음)
+        private GameObject setupDialog;   // 차림 설정 창 (따로 관리)
 
         private PlayerPanel CreatePlayerPanel(Transform parent, Team team, bool top)
         {
@@ -534,7 +537,7 @@ namespace Janggi
             CreateSheetRow(sheet, -224f, "record", "기보 · 둔 수 목록", Color.white, ShowMoveRecordSheet);
             CreateSheetRow(sheet, -348f, "settings", "설정 · 효과음과 음성", Color.white, ShowSettingsSheet);
             CreateSheetRow(sheet, -472f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
-            CreateSheetRow(sheet, -596f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "진행 중인 대국은 저장되지 않습니다.", "나가기", OnExitClicked));
+            CreateSheetRow(sheet, -596f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "두던 대국은 저장되어 다음에 이어서 둘 수 있습니다.", "나가기", OnExitClicked));
         }
 
         private void ShowMoveRecordSheet()
@@ -667,6 +670,7 @@ namespace Janggi
             Sprite pillSprite = GetRoundedSprite(48);
 
             GameObject dialogOverlay = new GameObject("PlacementSetupDialog");
+            setupDialog = dialogOverlay;
             dialogOverlay.transform.SetParent(canvasObj.transform, false);
 
             RectTransform overlayRect = dialogOverlay.AddComponent<RectTransform>();
@@ -756,6 +760,7 @@ namespace Janggi
                 PlayerPrefs.Save();
 
                 Destroy(dialogOverlay);
+                isMatchEnded = false; // 새 대국의 승패도 전적에 기록되게
                 if (GameManager.Instance != null)
                 {
                     GameManager.Instance.aiLevel = aiSelectedLevel;
@@ -1025,11 +1030,15 @@ namespace Janggi
 
         private void OnPassClicked()
         {
-            if (GameManager.Instance != null && GameManager.Instance.IsHumanTurn)
+            GameManager gm = GameManager.Instance;
+            if (gm == null || !gm.IsHumanTurn || gm.IsGameOver) return;
+            if (RuleValidator.IsInCheck(gm.Board, gm.CurrentTurn))
             {
-                GameManager.Instance.PassTurn();
-                UpdateTurnDisplay(GameManager.Instance.CurrentTurn);
+                ShowToast("장군 상태에서는 한수 쉼을 할 수 없습니다");
+                return;
             }
+            gm.PassTurn();
+            UpdateTurnDisplay(gm.CurrentTurn);
         }
 
         private void OnUndoClicked()

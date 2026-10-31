@@ -99,6 +99,7 @@ namespace Janggi.Tests
         {
             Assert.IsFalse(gm.LoadFromJson("not json"));
             Assert.IsFalse(gm.LoadFromJson("{\"cho\":0,\"han\":0,\"moves\":[4040]}")); // 둘 수 없는 수
+            Assert.IsFalse(gm.LoadFromJson("{\"cho\":0,\"han\":0,\"moves\":[9999]}")); // 판 밖 좌표 (예외 없이 실패)
         }
 
         [Test]
