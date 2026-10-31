@@ -24,6 +24,7 @@ namespace Janggi
 
         private float currentPitch = 90.0f;
         private float currentYaw = 0.0f;
+        private float baseYaw = 0.0f; // 한(漢)으로 두면 180
         private Vector3 targetLookAt = new Vector3(0f, 0f, 0f);
         private float distance = 11.2f;
 
@@ -35,6 +36,8 @@ namespace Janggi
             mainCamera.backgroundColor = BackgroundColor;
             mainCamera.fieldOfView = defaultFieldOfView;
             currentPitch = defaultPitch;
+            if (GameManager.Instance != null && GameManager.Instance.ViewFlipped) baseYaw = 180f;
+            currentYaw = baseYaw;
             UpdateCameraTransform();
         }
 
@@ -97,8 +100,8 @@ namespace Janggi
             Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0f);
             Vector3 dir = rot * new Vector3(0, 0, -targetDistance);
             Vector3 lookAt = targetLookAt;
-            if (currentPitch >= 89f)
-                lookAt.z -= UiCenterOffset * 2f * targetDistance * Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            if (currentPitch >= 89f) // 화면 위쪽 방향으로 판을 올림 (시점이 돌아가도 같게)
+                lookAt -= rot * Vector3.up * (UiCenterOffset * 2f * targetDistance * Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad));
             mainCamera.transform.position = lookAt + dir;
             mainCamera.transform.rotation = rot; // 바로 위에서도 화면 위쪽이 한(漢) 진영이 되도록 LookAt 대신 회전 직접 지정
         }
@@ -114,11 +117,11 @@ namespace Janggi
         // 시점 리셋: 이미 기본 시점이면 바로 위 시점으로, 아니면 기본(비스듬한) 시점으로 전환
         public void ResetView()
         {
-            bool atDefault = targetLookAt == Vector3.zero && Mathf.Approximately(currentYaw, 0f) && Mathf.Approximately(currentPitch, defaultPitch);
+            bool atDefault = targetLookAt == Vector3.zero && Mathf.Approximately(currentYaw, baseYaw) && Mathf.Approximately(currentPitch, defaultPitch);
             targetLookAt = new Vector3(0f, 0f, 0f);
             currentPitch = atDefault ? tiltedPitch : defaultPitch;
             mainCamera.fieldOfView = atDefault ? tiltedFieldOfView : defaultFieldOfView;
-            currentYaw = 0.0f;
+            currentYaw = baseYaw;
             distance = 18.5f;
             UpdateCameraTransform();
         }

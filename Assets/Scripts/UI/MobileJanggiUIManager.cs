@@ -76,6 +76,8 @@ namespace Janggi
         private PlacementType hanSelectedPlacement = PlacementType.MaSangMaSang;
         private int aiSelectedLevel = 5;
         private int timeLimitSelected;
+        private GameManager.GameMode modeSelected;
+        private static readonly string[] ModeLabels = { "AI와 · 나는 초", "AI와 · 나는 한", "둘이서" };
 
         private void Start()
         {
@@ -85,6 +87,7 @@ namespace Janggi
             {
                 aiSelectedLevel = GameManager.Instance.aiLevel;
                 timeLimitSelected = GameManager.Instance.moveTimeLimitSec;
+                modeSelected = GameManager.Instance.Mode;
             }
 
             BuildMobileUI();
@@ -167,7 +170,7 @@ namespace Janggi
                 bool isAi = gm != null && gm.isPlayerVsAI && panel.Team == gm.aiTeam;
                 bool active = panel.Team == turn && (gm == null || !gm.IsGameOver);
                 string side = panel.Team == Team.Cho ? "초(楚)" : "한(漢)";
-                panel.Name.text = isAi ? $"{side} · AI {gm.aiLevel}단" : $"{side} · 나";
+                panel.Name.text = isAi ? $"{side} · AI {gm.aiLevel}단" : gm != null && !gm.isPlayerVsAI ? side : $"{side} · 나";
                 panel.Status.text = gm != null && gm.IsGameOver ? "대국 종료" : active ? (isAi ? "생각 중" : "내 차례") : "대기 중";
                 panel.Status.color = active ? AccentGold : TextSubColor;
                 panel.Outline.enabled = active;
@@ -258,14 +261,16 @@ namespace Janggi
             uiFont = hangulFont;
             uiCanvas = canvasObj.transform;
 
-            // 위: 한(漢), 아래: 초(楚) — 장기판 방향과 같게
-            hanPanel = CreatePlayerPanel(canvasObj.transform, Team.Han, top: true);
-            choPanel = CreatePlayerPanel(canvasObj.transform, Team.Cho, top: false);
+            // 장기판 방향과 같게: 평소엔 위 한(漢)·아래 초(楚), 내가 한으로 두면 뒤집음
+            bool flipped = GameManager.Instance != null && GameManager.Instance.ViewFlipped;
+            hanPanel = CreatePlayerPanel(canvasObj.transform, Team.Han, top: !flipped);
+            choPanel = CreatePlayerPanel(canvasObj.transform, Team.Cho, top: flipped);
+            PlayerPanel topPanel = flipped ? choPanel : hanPanel, bottomPanel = flipped ? hanPanel : choPanel;
 
             // 전적은 상대 패널 오른쪽, 내 남은 시간은 내 패널 오른쪽
-            recordText = CreatePanelText(hanPanel.Root, "Record", new Vector2(-28f, 0f), new Vector2(300f, 84f), 23, TextAnchor.MiddleRight, TextSubColor);
+            recordText = CreatePanelText(topPanel.Root, "Record", new Vector2(-28f, 0f), new Vector2(300f, 84f), 23, TextAnchor.MiddleRight, TextSubColor);
             recordText.rectTransform.anchorMin = recordText.rectTransform.anchorMax = recordText.rectTransform.pivot = new Vector2(1f, 0.5f);
-            timerText = CreatePanelText(choPanel.Root, "Timer", new Vector2(-28f, 0f), new Vector2(200f, 84f), 40, TextAnchor.MiddleRight, AccentGold);
+            timerText = CreatePanelText(bottomPanel.Root, "Timer", new Vector2(-28f, 0f), new Vector2(200f, 84f), 40, TextAnchor.MiddleRight, AccentGold);
             timerText.rectTransform.anchorMin = timerText.rectTransform.anchorMax = timerText.rectTransform.pivot = new Vector2(1f, 0.5f);
             timerText.fontStyle = FontStyle.Bold;
             UpdateRecordDisplay();
@@ -514,11 +519,11 @@ namespace Janggi
         private void ShowMenuSheet()
         {
             GameObject overlay = CreateOverlay("MenuSheet");
-            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 520f));
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 644f));
             // 화면 폭에 맞춰 늘어나게 (캔버스 폭은 기기 비율에 따라 1080보다 좁을 수 있음)
             sheet.anchorMin = new Vector2(0f, 0f);
             sheet.anchorMax = new Vector2(1f, 0f);
-            sheet.sizeDelta = new Vector2(-32f, 520f);
+            sheet.sizeDelta = new Vector2(-32f, 644f);
 
             Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
@@ -526,8 +531,31 @@ namespace Janggi
             title.text = "메뉴";
 
             CreateSheetRow(sheet, -100f, "new_game", "새 대국 · 차림과 AI 수준", Color.white, () => { CloseOverlay(); ShowPlacementSetupDialog(); });
-            CreateSheetRow(sheet, -224f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
-            CreateSheetRow(sheet, -348f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "진행 중인 대국은 저장되지 않습니다.", "나가기", OnExitClicked));
+            CreateSheetRow(sheet, -224f, "settings", "설정 · 효과음과 음성", Color.white, ShowSettingsSheet);
+            CreateSheetRow(sheet, -348f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
+            CreateSheetRow(sheet, -472f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "진행 중인 대국은 저장되지 않습니다.", "나가기", OnExitClicked));
+        }
+
+        private void ShowSettingsSheet()
+        {
+            JanggiSoundManager sound = JanggiSoundManager.Instance;
+            GameObject overlay = CreateOverlay("SettingsSheet");
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 400f));
+            sheet.anchorMin = new Vector2(0f, 0f);
+            sheet.anchorMax = new Vector2(1f, 0f);
+            sheet.sizeDelta = new Vector2(-32f, 400f);
+
+            Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
+            title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
+            title.fontStyle = FontStyle.Bold;
+            title.text = "설정";
+            if (sound == null) return;
+
+            // 누를 때마다 켜짐/꺼짐이 바뀌고 시트를 다시 그려 상태를 보여 줌
+            CreateSheetRow(sheet, -100f, "settings", $"효과음: {(sound.SfxEnabled ? "켜짐" : "꺼짐")}", sound.SfxEnabled ? Color.white : TextSubColor,
+                () => { sound.SfxEnabled = !sound.SfxEnabled; ShowSettingsSheet(); });
+            CreateSheetRow(sheet, -224f, "settings", $"음성 대사: {(sound.VoiceEnabled ? "켜짐" : "꺼짐")}", sound.VoiceEnabled ? Color.white : TextSubColor,
+                () => { sound.VoiceEnabled = !sound.VoiceEnabled; ShowSettingsSheet(); });
         }
 
         private void ShowConfirm(string title, string message, string confirmLabel, UnityEngine.Events.UnityAction onConfirm)
@@ -590,7 +618,7 @@ namespace Janggi
             card.transform.SetParent(dialogOverlay.transform, false);
 
             RectTransform cardRect = card.AddComponent<RectTransform>();
-            cardRect.sizeDelta = new Vector2(860, 1360);
+            cardRect.sizeDelta = new Vector2(860, 1590);
 
             Image cardBg = card.AddComponent<Image>();
             cardBg.sprite = pillSprite;
@@ -601,7 +629,7 @@ namespace Janggi
             GameObject titleObj = new GameObject("TitleText");
             titleObj.transform.SetParent(card.transform, false);
             RectTransform titleRect = titleObj.AddComponent<RectTransform>();
-            titleRect.anchoredPosition = new Vector2(0, 610);
+            titleRect.anchoredPosition = new Vector2(0, 725);
             titleRect.sizeDelta = new Vector2(800, 70);
 
             Text titleTxt = titleObj.AddComponent<Text>();
@@ -616,33 +644,36 @@ namespace Janggi
             GameObject subTitleObj = new GameObject("SubTitleText");
             subTitleObj.transform.SetParent(card.transform, false);
             RectTransform subTitleRect = subTitleObj.AddComponent<RectTransform>();
-            subTitleRect.anchoredPosition = new Vector2(0, 550);
+            subTitleRect.anchoredPosition = new Vector2(0, 665);
             subTitleRect.sizeDelta = new Vector2(800, 50);
 
             Text subTitleTxt = subTitleObj.AddComponent<Text>();
             subTitleTxt.font = font;
-            subTitleTxt.text = "초(楚)·한(漢)의 마상 차림과 AI 수준을 선택하세요";
+            subTitleTxt.text = "대국 방식, 마상 차림, AI 수준, 제한 시간을 선택하세요";
             subTitleTxt.fontSize = 26;
             subTitleTxt.alignment = TextAnchor.MiddleCenter;
             subTitleTxt.color = new Color(0.8f, 0.9f, 1.0f);
 
-            // Section 1: Cho (Player) Placement Selection
-            CreateTeamPlacementSection(card.transform, "🔵 초(楚) 차림 (Player)", 440, Team.Cho, font, pillSprite);
+            // Section 0: Game Mode
+            CreateChoiceSection(card.transform, 555, "대국 방식", ModeLabels, (int)modeSelected, i => modeSelected = (GameManager.GameMode)i, font, pillSprite);
+
+            // Section 1: Cho Placement Selection
+            CreateTeamPlacementSection(card.transform, "🔵 초(楚) 차림", 325, Team.Cho, font, pillSprite);
 
             // Section 2: Han (AI) Placement Selection
-            CreateTeamPlacementSection(card.transform, "🔴 한(漢) 차림 (AI)", 190, Team.Han, font, pillSprite);
+            CreateTeamPlacementSection(card.transform, "🔴 한(漢) 차림", 75, Team.Han, font, pillSprite);
 
             // Section 3: AI Level Selection
-            CreateAiLevelSection(card.transform, -60, font, pillSprite);
+            CreateAiLevelSection(card.transform, -175, font, pillSprite);
 
             // Section 4: Move Time Limit
-            CreateTimeLimitSection(card.transform, -290, font, pillSprite);
+            CreateTimeLimitSection(card.transform, -405, font, pillSprite);
 
             // Start / Apply Button
             GameObject startBtnObj = new GameObject("Btn_StartGame");
             startBtnObj.transform.SetParent(card.transform, false);
             RectTransform startRect = startBtnObj.AddComponent<RectTransform>();
-            startRect.anchoredPosition = new Vector2(0, -500);
+            startRect.anchoredPosition = new Vector2(0, -615);
             startRect.sizeDelta = new Vector2(460, 96);
 
             Image startImg = startBtnObj.AddComponent<Image>();
@@ -658,6 +689,7 @@ namespace Janggi
                 PlayerPrefs.SetInt(KEY_HAN_PLACEMENT, (int)hanSelectedPlacement);
                 PlayerPrefs.SetInt(GameManager.KeyAiLevel, aiSelectedLevel);
                 PlayerPrefs.SetInt(GameManager.KeyMoveTimeLimit, timeLimitSelected);
+                PlayerPrefs.SetInt(GameManager.KeyGameMode, (int)modeSelected);
                 PlayerPrefs.Save();
 
                 Destroy(dialogOverlay);
@@ -665,6 +697,15 @@ namespace Janggi
                 {
                     GameManager.Instance.aiLevel = aiSelectedLevel;
                     GameManager.Instance.moveTimeLimitSec = timeLimitSelected;
+                    bool modeChanged = GameManager.Instance.Mode != modeSelected;
+                    GameManager.Instance.ApplyMode(modeSelected);
+                    if (modeChanged)
+                    {
+                        // 판 방향·패널 배치가 바뀌므로 새 대국을 저장한 뒤 씬을 다시 불러 처음부터 구성
+                        GameManager.Instance.StartGame(choSelectedPlacement, hanSelectedPlacement);
+                        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+                        return;
+                    }
                     GameManager.Instance.StartGame(choSelectedPlacement, hanSelectedPlacement);
                     UpdateTurnDisplay(GameManager.Instance.CurrentTurn);
                 }
@@ -693,7 +734,7 @@ namespace Janggi
             GameObject noticeObj = new GameObject("OpenSourceNotice");
             noticeObj.transform.SetParent(card.transform, false);
             RectTransform noticeRect = noticeObj.AddComponent<RectTransform>();
-            noticeRect.anchoredPosition = new Vector2(0, -615);
+            noticeRect.anchoredPosition = new Vector2(0, -730);
             noticeRect.sizeDelta = new Vector2(800, 80);
 
             Text noticeTxt = noticeObj.AddComponent<Text>();
@@ -792,7 +833,17 @@ namespace Janggi
 
         private void CreateTimeLimitSection(Transform parent, float startY, Font font, Sprite pillSprite)
         {
-            GameObject titleObj = new GameObject("SectionTitle_TimeLimit");
+            string[] labels = new string[TimeLimitOptions.Length];
+            for (int i = 0; i < labels.Length; i++) labels[i] = TimeLimitOptions[i] == 0 ? "제한 없음" : $"{TimeLimitOptions[i]}초";
+            CreateChoiceSection(parent, startY, "⏱ 한 수 제한 시간 (넘기면 시간패)", labels,
+                System.Array.IndexOf(TimeLimitOptions, timeLimitSelected), i => timeLimitSelected = TimeLimitOptions[i], font, pillSprite);
+        }
+
+        // 제목 + 가로로 늘어선 선택 버튼 (선택한 것만 파란색)
+        private void CreateChoiceSection(Transform parent, float startY, string title, string[] labels, int selected,
+            System.Action<int> onSelect, Font font, Sprite pillSprite)
+        {
+            GameObject titleObj = new GameObject($"SectionTitle_{title}");
             titleObj.transform.SetParent(parent, false);
             RectTransform titleRect = titleObj.AddComponent<RectTransform>();
             titleRect.anchoredPosition = new Vector2(0, startY);
@@ -800,35 +851,34 @@ namespace Janggi
 
             Text titleTxt = titleObj.AddComponent<Text>();
             titleTxt.font = font;
-            titleTxt.text = "⏱ 한 수 제한 시간 (넘기면 시간패)";
+            titleTxt.text = title;
             titleTxt.fontSize = 30;
             titleTxt.fontStyle = FontStyle.Bold;
             titleTxt.alignment = TextAnchor.MiddleLeft;
             titleTxt.color = new Color(1.0f, 0.85f, 0.35f);
 
+            Color on = new Color(0.25f, 0.55f, 0.95f), off = new Color(0.20f, 0.24f, 0.32f);
             List<Image> btnImages = new List<Image>();
-            for (int i = 0; i < TimeLimitOptions.Length; i++)
+            float width = 760f / labels.Length;
+            for (int i = 0; i < labels.Length; i++)
             {
-                int seconds = TimeLimitOptions[i];
-
-                GameObject btnObj = new GameObject($"TimeLimitBtn_{seconds}");
+                int index = i;
+                GameObject btnObj = new GameObject($"Choice_{labels[i]}");
                 btnObj.transform.SetParent(parent, false);
                 RectTransform rect = btnObj.AddComponent<RectTransform>();
-                rect.anchoredPosition = new Vector2(-260f + i * 260f, startY - 85f);
-                rect.sizeDelta = new Vector2(240f, 90f);
+                rect.anchoredPosition = new Vector2(-380f + width * (i + 0.5f), startY - 85f);
+                rect.sizeDelta = new Vector2(width - 16f, 90f);
 
                 Image img = btnObj.AddComponent<Image>();
                 img.sprite = pillSprite;
                 img.type = Image.Type.Sliced;
-                img.color = (seconds == timeLimitSelected) ? new Color(0.25f, 0.55f, 0.95f) : new Color(0.20f, 0.24f, 0.32f);
+                img.color = i == selected ? on : off;
                 btnImages.Add(img);
 
-                Button btn = btnObj.AddComponent<Button>();
-                btn.onClick.AddListener(() =>
+                btnObj.AddComponent<Button>().onClick.AddListener(() =>
                 {
-                    timeLimitSelected = seconds;
-                    for (int k = 0; k < btnImages.Count; k++)
-                        btnImages[k].color = (TimeLimitOptions[k] == seconds) ? new Color(0.25f, 0.55f, 0.95f) : new Color(0.20f, 0.24f, 0.32f);
+                    onSelect(index);
+                    for (int k = 0; k < btnImages.Count; k++) btnImages[k].color = k == index ? on : off;
                 });
 
                 GameObject txtObj = new GameObject("Label");
@@ -840,8 +890,8 @@ namespace Janggi
 
                 Text txt = txtObj.AddComponent<Text>();
                 txt.font = font;
-                txt.text = seconds == 0 ? "제한 없음" : $"{seconds}초";
-                txt.fontSize = 28;
+                txt.text = labels[i];
+                txt.fontSize = 26;
                 txt.fontStyle = FontStyle.Bold;
                 txt.alignment = TextAnchor.MiddleCenter;
                 txt.color = Color.white;

@@ -320,6 +320,8 @@ namespace Janggi
         private GameObject BuildPieceVisual(Team team, PieceType type, string name, bool withCollider)
         {
             GameObject obj = new GameObject(name);
+            // 한(漢)으로 둘 때는 카메라가 180도 돌아가므로 기물도 돌려 글자가 바로 보이게
+            if (GameManager.Instance != null && GameManager.Instance.ViewFlipped) obj.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
 
             // 1. 입체감 충만한 3D 두께(Height) 부여
             float radius = 0.42f;

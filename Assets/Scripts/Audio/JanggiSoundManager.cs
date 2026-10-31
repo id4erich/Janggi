@@ -14,6 +14,29 @@ namespace Janggi
         private AudioSource sfxSource;
         private AudioSource voiceSource;
 
+        // 설정 시트의 효과음·음성 대사 켜기/끄기 (기기에 저장)
+        public const string KeySfx = "Janggi_Sfx", KeyVoice = "Janggi_Voice";
+
+        public bool SfxEnabled
+        {
+            get => !sfxSource.mute;
+            set { sfxSource.mute = !value; PlayerPrefs.SetInt(KeySfx, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        public bool VoiceEnabled
+        {
+            get => !voiceSource.mute;
+            set
+            {
+                voiceSource.mute = !value; // 합성 목소리·웃음소리
+                PlayerPrefs.SetInt(KeyVoice, value ? 1 : 0);
+                PlayerPrefs.Save();
+#if UNITY_ANDROID && !UNITY_EDITOR
+                if (!value && tts != null) tts.Call<int>("stop");
+#endif
+            }
+        }
+
         private void Awake()
         {
             if (Instance == null)
@@ -50,6 +73,9 @@ namespace Janggi
             voiceSource.spatialBlend = 0f; // 2D Sound
             voiceSource.volume = 1.0f;
             voiceSource.priority = 0; // 최상위 명확도 우선순위
+
+            sfxSource.mute = PlayerPrefs.GetInt(KeySfx, 1) == 0;
+            voiceSource.mute = PlayerPrefs.GetInt(KeyVoice, 1) == 0;
 
             // AudioListener 자동 점검 및 부착
             if (FindFirstObjectByType<AudioListener>() == null && Camera.main != null)
@@ -255,7 +281,7 @@ namespace Janggi
         /// </summary>
         public void SpeakComicTTS(string textToSay, float pitchMultiplier = 1.35f)
         {
-            if (string.IsNullOrEmpty(textToSay)) return;
+            if (string.IsNullOrEmpty(textToSay) || !VoiceEnabled) return;
             // TTS가 '~' 문자를 '물결표'라고 읽지 않도록 필터링 처리
             string cleanText = textToSay.Replace("~", "").Replace("^", "").Replace("  ", " ");
 #if UNITY_ANDROID && !UNITY_EDITOR

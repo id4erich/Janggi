@@ -10,6 +10,8 @@ A Korean chess (janggi) app built with Unity. It targets Android (arm64) and use
   - Diagonal moves along the palace lines (General, Guards, Chariots, Cannons, Soldiers)
   - Moves that leave your own General in check are rejected; checkmate ends the game
   - Pass, undo, resign
+- Game modes: vs AI as Cho, vs AI as Han (the AI moves first and the board is turned around), or two players on one device
+- Sound effects and voice lines can be turned on or off separately (Menu → Settings)
 - Four Horse/Elephant setups, chosen separately for each side (Cho and Han)
 - AI levels 1–9 (dan). Uses Fairy-Stockfish; falls back to a built-in alpha-beta AI if the engine cannot be started
 - 3D presentation: chamfered octagonal boxwood pieces with engraved brush-script characters, a wood-grain board, a top-down view that fills the screen width (the "view" button switches to an angled 3D view), and soft shadows

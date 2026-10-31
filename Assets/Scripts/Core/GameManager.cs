@@ -47,6 +47,20 @@ namespace Janggi
         public PlacementType choPlacement = PlacementType.MaSangMaSang;
         public PlacementType hanPlacement = PlacementType.MaSangMaSang;
 
+        public enum GameMode { VsAiAsCho = 0, VsAiAsHan = 1, TwoPlayers = 2 }
+        public const string KeyGameMode = "Janggi_GameMode";
+
+        public GameMode Mode => !isPlayerVsAI ? GameMode.TwoPlayers : aiTeam == Team.Han ? GameMode.VsAiAsCho : GameMode.VsAiAsHan;
+
+        public void ApplyMode(GameMode mode)
+        {
+            isPlayerVsAI = mode != GameMode.TwoPlayers;
+            aiTeam = mode == GameMode.VsAiAsHan ? Team.Cho : Team.Han;
+        }
+
+        // 내가 한(漢)으로 두면 판을 180도 돌려 내 진영이 화면 아래에 오게 함
+        public bool ViewFlipped => isPlayerVsAI && aiTeam == Team.Cho;
+
         [Tooltip("한 수 제한 시간(초). 0이면 제한 없음, 시간을 넘기면 시간패")]
         public int moveTimeLimitSec = 0;
         public const string KeyMoveTimeLimit = "Janggi_MoveTimeLimit";
@@ -67,6 +81,7 @@ namespace Janggi
                 hanPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Han_Placement", (int)PlacementType.MaSangMaSang);
                 aiLevel = PlayerPrefs.GetInt(KeyAiLevel, aiLevel);
                 moveTimeLimitSec = PlayerPrefs.GetInt(KeyMoveTimeLimit, moveTimeLimitSec);
+                ApplyMode((GameMode)PlayerPrefs.GetInt(KeyGameMode, (int)Mode));
                 InitializeBoard(choPlacement, hanPlacement);
 
                 // 앱이 꺼졌다 켜지면 두던 대국을 이어 둠
@@ -107,13 +122,13 @@ namespace Janggi
         [Serializable]
         private class SavedGame
         {
-            public int cho, han;
+            public int cho, han, mode;
             public List<int> moves = new List<int>(); // 한수 쉼 = -1, 그 외 from + to * 100 (칸 번호 = x + y * 9)
         }
 
         public string SaveToJson()
         {
-            var game = new SavedGame { cho = (int)choPlacement, han = (int)hanPlacement };
+            var game = new SavedGame { cho = (int)choPlacement, han = (int)hanPlacement, mode = (int)Mode };
             MoveRecord[] records = historyStack.ToArray();
             Array.Reverse(records); // Stack은 마지막 수부터 나오므로 처음 수부터로 뒤집음
             foreach (var r in records)
@@ -130,6 +145,7 @@ namespace Janggi
 
             choPlacement = (PlacementType)game.cho;
             hanPlacement = (PlacementType)game.han;
+            ApplyMode((GameMode)game.mode);
             InitializeBoard(choPlacement, hanPlacement);
             replaying = true;
             try
