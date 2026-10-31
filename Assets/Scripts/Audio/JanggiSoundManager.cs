@@ -21,6 +21,9 @@ namespace Janggi
                 Instance = this;
                 DontDestroyOnLoad(gameObject);
                 InitAudioSources();
+#if UNITY_ANDROID && !UNITY_EDITOR
+                InitTextToSpeech();
+#endif
             }
             else
             {
@@ -243,13 +246,9 @@ namespace Janggi
         }
 
         /// <summary>
-        /// 100% 무료 고품질 구글 한국어 성우 TTS (API 키 필요없음)
+        /// 한국어 음성 대사. Android는 기기 내장 TextToSpeech(오프라인)로 읽고, 에디터·기타 플랫폼은 로그만 남김
         /// </summary>
-        public void SpeakFreeTTS(string textToSay)
-        {
-            if (string.IsNullOrEmpty(textToSay)) return;
-            StartCoroutine(DownloadAndPlayFreeTTS(textToSay, 1.0f));
-        }
+        public void SpeakFreeTTS(string textToSay) => SpeakComicTTS(textToSay, 1.0f);
 
         /// <summary>
         /// 코믹하고 깐족거리는 하이피치/헬륨 효과 한국어 음성
@@ -257,38 +256,49 @@ namespace Janggi
         public void SpeakComicTTS(string textToSay, float pitchMultiplier = 1.35f)
         {
             if (string.IsNullOrEmpty(textToSay)) return;
-            StartCoroutine(DownloadAndPlayFreeTTS(textToSay, pitchMultiplier));
-        }
-
-        private IEnumerator DownloadAndPlayFreeTTS(string text, float pitch = 1.0f)
-        {
             // TTS가 '~' 문자를 '물결표'라고 읽지 않도록 필터링 처리
-            string cleanText = text.Replace("~", "").Replace("^", "").Replace("  ", " ");
-            string encodedText = UnityEngine.Networking.UnityWebRequest.EscapeURL(cleanText);
-            // 구글 gtx 신경망(Neural) 고해상도 24kHz 한국어 음성 스트림 URL
-            string url = $"https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&tl=ko-KR&idx=0&total=1&textlen={cleanText.Length}&q={encodedText}";
-
-            using (UnityEngine.Networking.UnityWebRequest www = UnityEngine.Networking.UnityWebRequestMultimedia.GetAudioClip(url, AudioType.MPEG))
-            {
-                www.SetRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-                yield return www.SendWebRequest();
-
-                if (www.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
-                {
-                    AudioClip clip = UnityEngine.Networking.DownloadHandlerAudioClip.GetContent(www);
-                    if (clip != null && voiceSource != null)
-                    {
-                        voiceSource.pitch = pitch;
-                        voiceSource.outputAudioMixerGroup = null;
-                        voiceSource.PlayOneShot(clip, 1.0f);
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning($"Free High-Res TTS Download Error: {www.error}");
-                }
-            }
+            string cleanText = textToSay.Replace("~", "").Replace("^", "").Replace("  ", " ");
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (!ttsReady) return; // 초기화 전(앱 시작 직후)이면 대사 생략
+            tts.Call<int>("setPitch", pitchMultiplier);
+            using (var bundle = new AndroidJavaObject("android.os.Bundle"))
+                tts.Call<int>("speak", cleanText, 0 /* QUEUE_FLUSH */, bundle, "janggi");
+#else
+            Debug.Log($"[TTS] {cleanText}");
+#endif
         }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private AndroidJavaObject tts;
+        private volatile bool ttsReady;
+
+        private class TtsInitListener : AndroidJavaProxy
+        {
+            private readonly System.Action<int> callback;
+            public TtsInitListener(System.Action<int> callback) : base("android.speech.tts.TextToSpeech$OnInitListener") { this.callback = callback; }
+            public void onInit(int status) => callback(status); // Java 인터페이스 메서드 이름 그대로
+        }
+
+        private void InitTextToSpeech()
+        {
+            tts = new AndroidJavaObject("android.speech.tts.TextToSpeech",
+                UnityEngine.Android.AndroidApplication.currentActivity,
+                new TtsInitListener(status =>
+                {
+                    if (status != 0) { Debug.LogWarning($"TextToSpeech 초기화 실패: {status}"); return; }
+                    using (var korean = new AndroidJavaObject("java.util.Locale", "ko", "KR"))
+                        tts.Call<int>("setLanguage", korean);
+                    ttsReady = true;
+                }));
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance != this || tts == null) return;
+            tts.Call("shutdown");
+            tts.Dispose();
+        }
+#endif
 
         private IEnumerator PlayTauntLaughSequence()
         {
