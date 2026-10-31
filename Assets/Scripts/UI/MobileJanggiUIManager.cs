@@ -103,7 +103,18 @@ namespace Janggi
             }
 #endif
 
-            if (isTimerRunning && turnTimer > 0f)
+            GameManager gm = GameManager.Instance;
+            bool humanTurn = gm == null || (gm.IsHumanTurn && !gm.IsGameOver);
+
+            // AI가 생각하는 동안은 점이 움직이는 "생각 중" 표시 (타이머는 사람 차례에만 흐름)
+            if (gm != null && !gm.IsHumanTurn && !gm.IsGameOver && turnStatusText != null)
+            {
+                string dots = new string('.', 1 + (int)(Time.time * 2.5f) % 3);
+                turnStatusText.text = $"🔴 한(漢) 생각 중{dots} · AI {gm.aiLevel}단";
+                if (timerText != null) { timerText.text = "⏱️ --"; timerText.color = Color.yellow; }
+            }
+
+            if (isTimerRunning && humanTurn && turnTimer > 0f)
             {
                 turnTimer -= Time.deltaTime;
                 if (timerText != null)
