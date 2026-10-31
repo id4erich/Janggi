@@ -20,9 +20,9 @@ namespace Janggi
         [Tooltip("AI 한 수당 생각 시간 상한(ms). 이 안에 끝난 가장 깊은 수읽기를 사용")]
         public int aiTimeLimitMs = 2000;
 
-        [Header("Fairy-Stockfish (PC 시험용, GPL v3)")]
+        [Header("Fairy-Stockfish (GPL v3, PC·Android arm64)")]
         public bool useFairyStockfish = false;
-        [Tooltip("프로젝트 루트 기준 경로")]
+        [Tooltip("PC용, 프로젝트 루트 기준 경로 (Android는 앱에 포함된 엔진을 자동 사용)")]
         public string fairyStockfishPath = "Tools/FairyStockfish/fairy-stockfish-largeboard_x86-64-modern.exe";
         [Range(-20, 20)] public int fairyStockfishSkill = 0;
 
@@ -307,7 +307,11 @@ namespace Janggi
             if (fsEngine != null) return fsEngine;
             try
             {
+#if UNITY_ANDROID && !UNITY_EDITOR
+                string path = FairyStockfishEngine.DefaultPath(); // Plugins/Android/libs/arm64-v8a
+#else
                 string path = System.IO.Path.Combine(Application.dataPath, "..", fairyStockfishPath);
+#endif
                 fsEngine = new FairyStockfishEngine(path, fairyStockfishSkill);
             }
             catch (Exception e)

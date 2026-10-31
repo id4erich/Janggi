@@ -480,6 +480,9 @@ MonoBehaviour:
   aiTeam: 1
   aiDepth: 6
   aiTimeLimitMs: 2000
+  useFairyStockfish: 1
+  fairyStockfishPath: Tools/FairyStockfish/fairy-stockfish-largeboard_x86-64-modern.exe
+  fairyStockfishSkill: 0
   choPlacement: 0
   hanPlacement: 0
 --- !u!4 &1032097194

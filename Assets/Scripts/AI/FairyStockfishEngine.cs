@@ -5,14 +5,48 @@ using System.Text;
 namespace Janggi
 {
     // Fairy-Stockfish(GPL v3)를 별도 프로세스로 띄워 UCI로 수를 받아옴.
-    // shortcut: PC(에디터·Windows) 시험용, Android는 ProcessBuilder 연동이 필요함
+    // PC는 System.Diagnostics.Process, Android(arm64)는 Java Runtime.exec로 실행
     public class FairyStockfishEngine : IDisposable
     {
         // 앱 규칙(빅장·점수 판정 없음)과 가장 가까운 장기 변형
         private const string Variant = "janggicasual";
 
-        private readonly Process process;
         private readonly object sync = new object();
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private readonly UnityEngine.AndroidJavaObject process, input, output;
+
+        // 설치 시 풀린 네이티브 라이브러리 폴더만 실행 권한이 있음 (앱 데이터 폴더는 Android 10+에서 실행 불가)
+        public static string DefaultPath()
+        {
+            using (var info = UnityEngine.Android.AndroidApplication.currentActivity.Call<UnityEngine.AndroidJavaObject>("getApplicationInfo"))
+                return info.Get<string>("nativeLibraryDir") + "/libfairystockfish.so";
+        }
+
+        public FairyStockfishEngine(string exePath, int skillLevel)
+        {
+            using (var runtime = new UnityEngine.AndroidJavaClass("java.lang.Runtime"))
+            using (var rt = runtime.CallStatic<UnityEngine.AndroidJavaObject>("getRuntime"))
+                process = rt.Call<UnityEngine.AndroidJavaObject>("exec", exePath);
+            input = new UnityEngine.AndroidJavaObject("java.io.PrintStream", process.Call<UnityEngine.AndroidJavaObject>("getOutputStream"), true);
+            output = new UnityEngine.AndroidJavaObject("java.io.BufferedReader",
+                new UnityEngine.AndroidJavaObject("java.io.InputStreamReader", process.Call<UnityEngine.AndroidJavaObject>("getInputStream")));
+            Init(skillLevel);
+        }
+
+        private void Send(string cmd) => input.Call("println", cmd);
+        private string ReadLine() => output.Call<string>("readLine");
+
+        public void Dispose()
+        {
+            try { Send("quit"); } catch (Exception) { /* 이미 종료된 프로세스 */ }
+            process.Call("destroy");
+            input.Dispose();
+            output.Dispose();
+            process.Dispose();
+        }
+#else
+        private readonly Process process;
 
         public FairyStockfishEngine(string exePath, int skillLevel)
         {
@@ -23,6 +57,34 @@ namespace Janggi
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
             });
+            Init(skillLevel);
+        }
+
+        private void Send(string cmd)
+        {
+            process.StandardInput.WriteLine(cmd);
+            process.StandardInput.Flush();
+        }
+
+        private string ReadLine() => process.StandardOutput.ReadLine();
+
+        public void Dispose()
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    Send("quit");
+                    if (!process.WaitForExit(500)) process.Kill();
+                }
+            }
+            catch (Exception) { /* 이미 종료된 프로세스 */ }
+            process.Dispose();
+        }
+#endif
+
+        private void Init(int skillLevel)
+        {
             Send("uci");
             WaitFor("uciok");
             Send($"setoption name UCI_Variant value {Variant}");
@@ -36,23 +98,30 @@ namespace Janggi
         {
             lock (sync)
             {
+#if UNITY_ANDROID && !UNITY_EDITOR
+                // 백그라운드 스레드에서 JNI를 쓰려면 스레드를 JVM에 붙여야 함
+                UnityEngine.AndroidJNI.AttachCurrentThread();
+                try
+                {
+#endif
                 Send($"position fen {ToFen(board, sideToMove)}");
                 Send($"go movetime {moveTimeMs}");
                 string line = WaitFor("bestmove");
                 return ParseMove(line.Split(' ')[1]);
+#if UNITY_ANDROID && !UNITY_EDITOR
+                }
+                finally
+                {
+                    UnityEngine.AndroidJNI.DetachCurrentThread();
+                }
+#endif
             }
-        }
-
-        private void Send(string cmd)
-        {
-            process.StandardInput.WriteLine(cmd);
-            process.StandardInput.Flush();
         }
 
         private string WaitFor(string prefix)
         {
             string line;
-            while ((line = process.StandardOutput.ReadLine()) != null)
+            while ((line = ReadLine()) != null)
             {
                 if (line.StartsWith(prefix)) return line;
             }
@@ -104,19 +173,5 @@ namespace Janggi
         }
 
         private static BoardPos ParseSquare(string sq) => new BoardPos(sq[0] - 'a', int.Parse(sq.Substring(1)) - 1);
-
-        public void Dispose()
-        {
-            try
-            {
-                if (!process.HasExited)
-                {
-                    Send("quit");
-                    if (!process.WaitForExit(500)) process.Kill();
-                }
-            }
-            catch (Exception) { /* 이미 종료된 프로세스 */ }
-            process.Dispose();
-        }
     }
 }
