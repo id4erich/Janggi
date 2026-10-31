@@ -197,7 +197,7 @@ namespace Janggi
         private void BuildMobileUI()
         {
             // EventSystem 존재 여부 검사 및 생성
-            if (FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
+            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
             {
                 GameObject esObj = new GameObject("EventSystem");
                 esObj.AddComponent<UnityEngine.EventSystems.EventSystem>();
@@ -749,7 +749,7 @@ namespace Janggi
 
         private void OnResetViewClicked()
         {
-            CameraUIController camCtrl = FindObjectOfType<CameraUIController>();
+            CameraUIController camCtrl = FindFirstObjectByType<CameraUIController>();
             if (camCtrl != null) camCtrl.ResetView();
         }
 
@@ -840,7 +840,7 @@ namespace Janggi
             StartCoroutine(FlashRedScreenOverlay());
 
             // [공통 연출 2] 쾅! 책상 치는 지진/카메라 진동
-            CameraUIController camCtrl = FindObjectOfType<CameraUIController>();
+            CameraUIController camCtrl = FindFirstObjectByType<CameraUIController>();
             if (camCtrl != null)
             {
                 camCtrl.ShakeCamera(0.8f, 1.2f);
@@ -971,7 +971,7 @@ namespace Janggi
 
                     case 3:
                     default:
-                        CameraUIController camCtrl = FindObjectOfType<CameraUIController>();
+                        CameraUIController camCtrl = FindFirstObjectByType<CameraUIController>();
                         if (camCtrl != null)
                         {
                             camCtrl.ShakeCamera(0.6f, 0.9f);

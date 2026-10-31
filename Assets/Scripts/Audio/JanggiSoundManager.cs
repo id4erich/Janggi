@@ -49,7 +49,7 @@ namespace Janggi
             voiceSource.priority = 0; // 최상위 명확도 우선순위
 
             // AudioListener 자동 점검 및 부착
-            if (FindObjectOfType<AudioListener>() == null && Camera.main != null)
+            if (FindFirstObjectByType<AudioListener>() == null && Camera.main != null)
             {
                 Camera.main.gameObject.AddComponent<AudioListener>();
             }

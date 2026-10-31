@@ -79,44 +79,5 @@ namespace Janggi
             mesh.RecalculateBounds();
             return mesh;
         }
-
-        public static Texture2D CreateJanggiPieceTexture(string hanjaText, Color textCol, Color bgCol, Color borderColor)
-        {
-            int size = 256;
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-
-            Color[] pixels = new Color[size * size];
-
-            // 8각 영역 마스크 및 테두리 칠하기
-            float center = size * 0.5f;
-            float maxR = size * 0.45f;
-
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = x - center;
-                    float dy = y - center;
-                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
-
-                    if (dist > maxR)
-                    {
-                        pixels[y * size + x] = Color.clear;
-                    }
-                    else if (dist > maxR - 8f)
-                    {
-                        pixels[y * size + x] = borderColor;
-                    }
-                    else
-                    {
-                        pixels[y * size + x] = bgCol;
-                    }
-                }
-            }
-
-            tex.SetPixels(pixels);
-            tex.Apply();
-            return tex;
-        }
     }
 }

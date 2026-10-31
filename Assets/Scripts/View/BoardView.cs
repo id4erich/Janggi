@@ -31,13 +31,13 @@ namespace Janggi
                 Camera.main.gameObject.AddComponent<CameraUIController>();
             }
 
-            if (FindObjectOfType<MobileJanggiUIManager>() == null)
+            if (FindFirstObjectByType<MobileJanggiUIManager>() == null)
             {
                 GameObject uiObj = new GameObject("MobileJanggiUIManager");
                 uiObj.AddComponent<MobileJanggiUIManager>();
             }
 
-            if (JanggiSoundManager.Instance == null && FindObjectOfType<JanggiSoundManager>() == null)
+            if (JanggiSoundManager.Instance == null && FindFirstObjectByType<JanggiSoundManager>() == null)
             {
                 GameObject soundObj = new GameObject("JanggiSoundManager");
                 soundObj.AddComponent<JanggiSoundManager>();
@@ -602,16 +602,6 @@ namespace Janggi
             {
                 Destroy(lastMoveToHighlight);
                 lastMoveToHighlight = null;
-            }
-
-            // 씬에 누적 생성된 기존 "LastMoveFrom", "LastMoveTo" 마커 잔여물 전수 제거
-            var allObjs = FindObjectsOfType<GameObject>();
-            foreach (var obj in allObjs)
-            {
-                if (obj != null && (obj.name == "LastMoveFrom" || obj.name == "LastMoveTo"))
-                {
-                    Destroy(obj);
-                }
             }
         }
     }

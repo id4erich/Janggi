@@ -4,6 +4,18 @@ using System.Diagnostics;
 
 namespace Janggi
 {
+    public struct Move
+    {
+        public BoardPos From;
+        public BoardPos To;
+
+        public Move(BoardPos from, BoardPos to)
+        {
+            From = from;
+            To = to;
+        }
+    }
+
     public enum TTNodeType { Exact, LowerBound, UpperBound }
 
     public struct TTEntry
