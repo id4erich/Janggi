@@ -225,6 +225,7 @@ namespace Janggi
                     }
                 }
             }
+            RefreshCapturedTray();
         }
 
         // 회양목 장기말 재질: 윗면은 음각 붓글씨(Tools/PieceArt/bake_piece_textures.py로 생성), 옆면은 나뭇결.
@@ -254,13 +255,32 @@ namespace Janggi
 
         private void CreatePieceObject(PieceData data)
         {
-            GameObject obj = new GameObject($"{data.Team}_{data.Type}_({data.Position.x},{data.Position.y})");
+            GameObject obj = BuildPieceVisual(data.Team, data.Type, $"{data.Team}_{data.Type}_({data.Position.x},{data.Position.y})", withCollider: true);
             obj.transform.position = BoardToWorldPos(data.Position);
+            pieceRenderers[data.Position] = obj;
+        }
+
+        private static float PieceHeight(PieceType type)
+        {
+            switch (type)
+            {
+                case PieceType.King: return 0.32f;
+                case PieceType.Car:
+                case PieceType.Cannon: return 0.28f;
+                case PieceType.Guard:
+                case PieceType.Pawn: return 0.22f;
+                default: return 0.25f;
+            }
+        }
+
+        private GameObject BuildPieceVisual(Team team, PieceType type, string name, bool withCollider)
+        {
+            GameObject obj = new GameObject(name);
 
             // 1. 입체감 충만한 3D 두께(Height) 부여
             float radius = 0.42f;
             float height = 0.25f; // 입체 3D 조각판 두께감 강화
-            switch (data.Type)
+            switch (type)
             {
                 case PieceType.King: radius = 0.48f; height = 0.32f; break; // 궁: 우뚝 솟은 3D 8각
                 case PieceType.Car:
@@ -276,17 +296,58 @@ namespace Janggi
             mf.mesh = JanggiMeshGenerator.CreateOctagonalPieceMesh(radius, height);
 
             MeshRenderer ren = obj.AddComponent<MeshRenderer>();
-            ren.sharedMaterials = GetPieceMaterials(data.Team, data.Type);
+            ren.sharedMaterials = GetPieceMaterials(team, type);
 
             // 그림자 투사(Shadow Casting) 및 수신 설정
             ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             ren.receiveShadows = true;
 
-            // 콜라이더 생성
-            BoxCollider boxCol = obj.AddComponent<BoxCollider>();
-            boxCol.size = new Vector3(radius * 2f, height, radius * 2f);
+            // 콜라이더 생성 (판 위의 말만; 잡힌 말 진열대는 클릭 판정에서 제외)
+            if (withCollider)
+            {
+                BoxCollider boxCol = obj.AddComponent<BoxCollider>();
+                boxCol.size = new Vector3(radius * 2f, height, radius * 2f);
+            }
+            return obj;
+        }
 
-            pieceRenderers[data.Position] = obj;
+        // 잡은 말 진열: 초가 잡은 한의 말은 판 아래쪽(초 쪽) 탁자, 한이 잡은 초의 말은 판 위쪽 탁자에 줄지어 놓음
+        private readonly List<GameObject> capturedTray = new List<GameObject>();
+        private static readonly (PieceType Type, int Count)[] InitialPieces =
+        {
+            (PieceType.Car, 2), (PieceType.Cannon, 2), (PieceType.Horse, 2), (PieceType.Elephant, 2),
+            (PieceType.Guard, 2), (PieceType.Pawn, 5), (PieceType.King, 1)
+        };
+
+        public void RefreshCapturedTray()
+        {
+            foreach (var t in capturedTray) if (t != null) Destroy(t);
+            capturedTray.Clear();
+
+            const float scale = 0.75f, spacing = 0.6f, tableTop = -0.402f;
+            foreach (Team owner in new[] { Team.Cho, Team.Han })
+            {
+                var onBoard = new Dictionary<PieceType, int>();
+                foreach (var p in GameManager.Instance.Board)
+                    if (p != null && p.Team == owner) onBoard[p.Type] = onBoard.TryGetValue(p.Type, out int c) ? c + 1 : 1;
+
+                // 잡힌 말은 상대 쪽에 놓임: 한의 말 → 아래(z < 0), 초의 말 → 위(z > 0)
+                float z = owner == Team.Han ? -5.95f : 5.95f;
+                int slot = 0;
+                foreach (var (type, count) in InitialPieces)
+                {
+                    int missing = count - (onBoard.TryGetValue(type, out int n) ? n : 0);
+                    for (int i = 0; i < missing; i++, slot++)
+                    {
+                        GameObject piece = BuildPieceVisual(owner, type, $"Captured_{owner}_{type}", withCollider: false);
+                        float x = -4.2f + (slot % 15) * spacing;
+                        float row = (slot / 15) * spacing * Mathf.Sign(z);
+                        piece.transform.localScale = Vector3.one * scale;
+                        piece.transform.position = new Vector3(x, tableTop + PieceHeight(type) * scale * 0.5f, z + row);
+                        capturedTray.Add(piece);
+                    }
+                }
+            }
         }
 
         private void Update()
@@ -548,6 +609,7 @@ namespace Janggi
             if (capturedObj != null)
             {
                 Destroy(capturedObj);
+                RefreshCapturedTray();
             }
 
             // 최근 착수 이동 지점 표시링 생성 (시작 위치: 파란원, 끝 위치: 노란원)
