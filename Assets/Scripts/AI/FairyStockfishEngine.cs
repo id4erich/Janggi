@@ -23,7 +23,7 @@ namespace Janggi
                 return info.Get<string>("nativeLibraryDir") + "/libfairystockfish.so";
         }
 
-        public FairyStockfishEngine(string exePath, int skillLevel)
+        public FairyStockfishEngine(string exePath)
         {
             using (var runtime = new UnityEngine.AndroidJavaClass("java.lang.Runtime"))
             using (var rt = runtime.CallStatic<UnityEngine.AndroidJavaObject>("getRuntime"))
@@ -31,7 +31,7 @@ namespace Janggi
             input = new UnityEngine.AndroidJavaObject("java.io.PrintStream", process.Call<UnityEngine.AndroidJavaObject>("getOutputStream"), true);
             output = new UnityEngine.AndroidJavaObject("java.io.BufferedReader",
                 new UnityEngine.AndroidJavaObject("java.io.InputStreamReader", process.Call<UnityEngine.AndroidJavaObject>("getInputStream")));
-            Init(skillLevel);
+            Init();
         }
 
         private void Send(string cmd) => input.Call("println", cmd);
@@ -48,7 +48,7 @@ namespace Janggi
 #else
         private readonly Process process;
 
-        public FairyStockfishEngine(string exePath, int skillLevel)
+        public FairyStockfishEngine(string exePath)
         {
             process = Process.Start(new ProcessStartInfo(exePath)
             {
@@ -57,7 +57,7 @@ namespace Janggi
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
             });
-            Init(skillLevel);
+            Init();
         }
 
         private void Send(string cmd)
@@ -83,18 +83,17 @@ namespace Janggi
         }
 #endif
 
-        private void Init(int skillLevel)
+        private void Init()
         {
             Send("uci");
             WaitFor("uciok");
             Send($"setoption name UCI_Variant value {Variant}");
-            Send($"setoption name Skill Level value {skillLevel}");
             Send("isready");
             WaitFor("readyok");
         }
 
         // 백그라운드 스레드에서 호출 가능. 이전 요청이 끝날 때까지 기다린 뒤 실행
-        public Move GetBestMove(PieceData[,] board, Team sideToMove, int moveTimeMs)
+        public Move GetBestMove(PieceData[,] board, Team sideToMove, int skillLevel, int moveTimeMs)
         {
             lock (sync)
             {
@@ -104,6 +103,7 @@ namespace Janggi
                 try
                 {
 #endif
+                Send($"setoption name Skill Level value {skillLevel}"); // 단 변경이 다음 수부터 바로 반영되도록 매번 지정
                 Send($"position fen {ToFen(board, sideToMove)}");
                 Send($"go movetime {moveTimeMs}");
                 string line = WaitFor("bestmove");

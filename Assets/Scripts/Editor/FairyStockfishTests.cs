@@ -43,9 +43,9 @@ namespace Janggi.Tests
             if (!File.Exists(path)) Assert.Ignore("엔진 실행 파일 없음");
 
             PieceData[,] board = StartBoard();
-            using (var engine = new FairyStockfishEngine(path, 20))
+            using (var engine = new FairyStockfishEngine(path))
             {
-                Move m = engine.GetBestMove(board, Team.Cho, 200);
+                Move m = engine.GetBestMove(board, Team.Cho, 20, 200);
                 PieceData piece = board[m.From.x, m.From.y];
                 Assert.IsNotNull(piece);
                 Assert.AreEqual(Team.Cho, piece.Team);

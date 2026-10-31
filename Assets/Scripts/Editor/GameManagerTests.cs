@@ -40,6 +40,21 @@ namespace Janggi.Tests
         }
 
         [Test]
+        public void AiLevels_GetStrongerWithLevelAndClamp()
+        {
+            for (int lv = GameManager.MinAiLevel + 1; lv <= GameManager.MaxAiLevel; lv++)
+            {
+                var prev = GameManager.GetAiLevelSettings(lv - 1);
+                var cur = GameManager.GetAiLevelSettings(lv);
+                Assert.Greater(cur.Skill, prev.Skill);
+                Assert.Greater(cur.TimeMs, prev.TimeMs);
+                Assert.GreaterOrEqual(cur.Depth, prev.Depth);
+            }
+            Assert.AreEqual(GameManager.GetAiLevelSettings(1), GameManager.GetAiLevelSettings(0));
+            Assert.AreEqual(GameManager.GetAiLevelSettings(9), GameManager.GetAiLevelSettings(99));
+        }
+
+        [Test]
         public void Resign_EndsGameAndBlocksMoves()
         {
             gm.Resign();

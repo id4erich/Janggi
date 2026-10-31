@@ -77,11 +77,13 @@ namespace Janggi
 
         private PlacementType choSelectedPlacement = PlacementType.MaSangMaSang;
         private PlacementType hanSelectedPlacement = PlacementType.MaSangMaSang;
+        private int aiSelectedLevel = 5;
 
         private void Start()
         {
             choSelectedPlacement = (PlacementType)PlayerPrefs.GetInt(KEY_CHO_PLACEMENT, (int)PlacementType.MaSangMaSang);
             hanSelectedPlacement = (PlacementType)PlayerPrefs.GetInt(KEY_HAN_PLACEMENT, (int)PlacementType.MaSangMaSang);
+            if (GameManager.Instance != null) aiSelectedLevel = GameManager.Instance.aiLevel;
 
             BuildMobileUI();
         }
@@ -137,7 +139,8 @@ namespace Janggi
             turnTimer = 60f; // 턴 전환 시 타이머 리셋
             if (turnStatusText != null)
             {
-                turnStatusText.text = (turn == Team.Cho) ? "🔵 초(楚) 턴" : "🔴 한(漢) 턴 (AI)";
+                string level = (GameManager.Instance != null) ? $" · AI {GameManager.Instance.aiLevel}단" : "";
+                turnStatusText.text = (turn == Team.Cho) ? $"🔵 초(楚) 턴{level}" : $"🔴 한(漢) 턴{level}";
                 turnStatusText.color = (turn == Team.Cho) ? new Color(0.1f, 0.6f, 1f) : new Color(1f, 0.3f, 0.3f);
             }
 
@@ -249,11 +252,11 @@ namespace Janggi
             statusObj.transform.SetParent(topCard.transform, false);
             RectTransform statusRect = statusObj.AddComponent<RectTransform>();
             statusRect.anchoredPosition = new Vector2(-60, 36);
-            statusRect.sizeDelta = new Vector2(400, 44);
+            statusRect.sizeDelta = new Vector2(560, 44); // "· AI n단" 표시 공간
 
             turnStatusText = statusObj.AddComponent<Text>();
             turnStatusText.font = hangulFont;
-            turnStatusText.text = "🔵 초(楚) 턴";
+            turnStatusText.text = (GameManager.Instance != null) ? $"🔵 초(楚) 턴 · AI {GameManager.Instance.aiLevel}단" : "🔵 초(楚) 턴";
             turnStatusText.fontSize = 32;
             turnStatusText.fontStyle = FontStyle.Bold;
             turnStatusText.alignment = TextAnchor.MiddleCenter;
@@ -380,7 +383,7 @@ namespace Janggi
             card.transform.SetParent(dialogOverlay.transform, false);
 
             RectTransform cardRect = card.AddComponent<RectTransform>();
-            cardRect.sizeDelta = new Vector2(860, 920);
+            cardRect.sizeDelta = new Vector2(860, 1140);
 
             Image cardBg = card.AddComponent<Image>();
             cardBg.sprite = pillSprite;
@@ -391,7 +394,7 @@ namespace Janggi
             GameObject titleObj = new GameObject("TitleText");
             titleObj.transform.SetParent(card.transform, false);
             RectTransform titleRect = titleObj.AddComponent<RectTransform>();
-            titleRect.anchoredPosition = new Vector2(0, 390);
+            titleRect.anchoredPosition = new Vector2(0, 500);
             titleRect.sizeDelta = new Vector2(800, 70);
 
             Text titleTxt = titleObj.AddComponent<Text>();
@@ -406,27 +409,30 @@ namespace Janggi
             GameObject subTitleObj = new GameObject("SubTitleText");
             subTitleObj.transform.SetParent(card.transform, false);
             RectTransform subTitleRect = subTitleObj.AddComponent<RectTransform>();
-            subTitleRect.anchoredPosition = new Vector2(0, 330);
+            subTitleRect.anchoredPosition = new Vector2(0, 440);
             subTitleRect.sizeDelta = new Vector2(800, 50);
 
             Text subTitleTxt = subTitleObj.AddComponent<Text>();
             subTitleTxt.font = font;
-            subTitleTxt.text = "대국에 사용할 초(楚)와 한(漢)의 마상 차림을 선택하세요";
+            subTitleTxt.text = "초(楚)·한(漢)의 마상 차림과 AI 수준을 선택하세요";
             subTitleTxt.fontSize = 26;
             subTitleTxt.alignment = TextAnchor.MiddleCenter;
             subTitleTxt.color = new Color(0.8f, 0.9f, 1.0f);
 
             // Section 1: Cho (Player) Placement Selection
-            CreateTeamPlacementSection(card.transform, "🔵 초(楚) 차림 (Player)", 210, Team.Cho, font, pillSprite);
+            CreateTeamPlacementSection(card.transform, "🔵 초(楚) 차림 (Player)", 330, Team.Cho, font, pillSprite);
 
             // Section 2: Han (AI) Placement Selection
-            CreateTeamPlacementSection(card.transform, "🔴 한(漢) 차림 (AI)", -60, Team.Han, font, pillSprite);
+            CreateTeamPlacementSection(card.transform, "🔴 한(漢) 차림 (AI)", 80, Team.Han, font, pillSprite);
+
+            // Section 3: AI Level Selection
+            CreateAiLevelSection(card.transform, -170, font, pillSprite);
 
             // Start / Apply Button
             GameObject startBtnObj = new GameObject("Btn_StartGame");
             startBtnObj.transform.SetParent(card.transform, false);
             RectTransform startRect = startBtnObj.AddComponent<RectTransform>();
-            startRect.anchoredPosition = new Vector2(0, -340);
+            startRect.anchoredPosition = new Vector2(0, -450);
             startRect.sizeDelta = new Vector2(460, 96);
 
             Image startImg = startBtnObj.AddComponent<Image>();
@@ -440,12 +446,15 @@ namespace Janggi
                 // PlayerPrefs에 차림 설정 저장 (다음에 앱을 켜도 유지)
                 PlayerPrefs.SetInt(KEY_CHO_PLACEMENT, (int)choSelectedPlacement);
                 PlayerPrefs.SetInt(KEY_HAN_PLACEMENT, (int)hanSelectedPlacement);
+                PlayerPrefs.SetInt(GameManager.KeyAiLevel, aiSelectedLevel);
                 PlayerPrefs.Save();
 
                 Destroy(dialogOverlay);
                 if (GameManager.Instance != null)
                 {
+                    GameManager.Instance.aiLevel = aiSelectedLevel;
                     GameManager.Instance.StartGame(choSelectedPlacement, hanSelectedPlacement);
+                    UpdateTurnDisplay(GameManager.Instance.CurrentTurn);
                 }
                 if (BoardView.Instance != null)
                 {
@@ -547,6 +556,68 @@ namespace Janggi
                 txt.font = font;
                 txt.text = optionNames[i];
                 txt.fontSize = 22;
+                txt.fontStyle = FontStyle.Bold;
+                txt.alignment = TextAnchor.MiddleCenter;
+                txt.color = Color.white;
+            }
+        }
+
+        private void CreateAiLevelSection(Transform parent, float startY, Font font, Sprite pillSprite)
+        {
+            GameObject titleObj = new GameObject("SectionTitle_AiLevel");
+            titleObj.transform.SetParent(parent, false);
+            RectTransform titleRect = titleObj.AddComponent<RectTransform>();
+            titleRect.anchoredPosition = new Vector2(0, startY);
+            titleRect.sizeDelta = new Vector2(780, 50);
+
+            Text titleTxt = titleObj.AddComponent<Text>();
+            titleTxt.font = font;
+            titleTxt.text = "🤖 AI 수준 (1단 ~ 9단)";
+            titleTxt.fontSize = 30;
+            titleTxt.fontStyle = FontStyle.Bold;
+            titleTxt.alignment = TextAnchor.MiddleLeft;
+            titleTxt.color = new Color(1.0f, 0.85f, 0.35f);
+
+            List<Image> btnImages = new List<Image>();
+
+            for (int level = GameManager.MinAiLevel; level <= GameManager.MaxAiLevel; level++)
+            {
+                int lv = level;
+
+                GameObject btnObj = new GameObject($"AiLevelBtn_{lv}");
+                btnObj.transform.SetParent(parent, false);
+
+                RectTransform rect = btnObj.AddComponent<RectTransform>();
+                rect.anchoredPosition = new Vector2(-344f + (lv - 1) * 86f, startY - 85f);
+                rect.sizeDelta = new Vector2(80f, 90f);
+
+                Image img = btnObj.AddComponent<Image>();
+                img.sprite = pillSprite;
+                img.type = Image.Type.Sliced;
+                img.color = (lv == aiSelectedLevel) ? new Color(0.25f, 0.55f, 0.95f) : new Color(0.20f, 0.24f, 0.32f);
+                btnImages.Add(img);
+
+                Button btn = btnObj.AddComponent<Button>();
+                btn.onClick.AddListener(() =>
+                {
+                    aiSelectedLevel = lv;
+                    for (int k = 0; k < btnImages.Count; k++)
+                    {
+                        btnImages[k].color = (k + GameManager.MinAiLevel == lv) ? new Color(0.25f, 0.55f, 0.95f) : new Color(0.20f, 0.24f, 0.32f);
+                    }
+                });
+
+                GameObject txtObj = new GameObject("Label");
+                txtObj.transform.SetParent(btnObj.transform, false);
+                RectTransform txtRect = txtObj.AddComponent<RectTransform>();
+                txtRect.anchorMin = Vector2.zero;
+                txtRect.anchorMax = Vector2.one;
+                txtRect.sizeDelta = Vector2.zero;
+
+                Text txt = txtObj.AddComponent<Text>();
+                txt.font = font;
+                txt.text = $"{lv}단";
+                txt.fontSize = 26;
                 txt.fontStyle = FontStyle.Bold;
                 txt.alignment = TextAnchor.MiddleCenter;
                 txt.color = Color.white;

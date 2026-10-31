@@ -16,15 +16,26 @@ namespace Janggi
         [Header("AI Settings")]
         public bool isPlayerVsAI = true;
         public Team aiTeam = Team.Han;
-        public int aiDepth = 6;
-        [Tooltip("AI 한 수당 생각 시간 상한(ms). 이 안에 끝난 가장 깊은 수읽기를 사용")]
-        public int aiTimeLimitMs = 2000;
+        [Tooltip("AI 수준 1~9단. 차림 설정 창에서 고른 값이 PlayerPrefs에 저장되어 우선함")]
+        [Range(MinAiLevel, MaxAiLevel)] public int aiLevel = 5;
+        public const int MinAiLevel = 1, MaxAiLevel = 9;
+        public const string KeyAiLevel = "Janggi_AI_Level";
+
+        // 단별 (Fairy-Stockfish Skill Level, 한 수 생각 시간 ms, 엔진이 없을 때 내장 AI 수읽기 깊이)
+        // shortcut: 추정값, 단끼리 자동 대국이나 플레이 테스트로 간격을 조정할 것
+        private static readonly (int Skill, int TimeMs, int Depth)[] AiLevels =
+        {
+            (-20, 300, 1), (-15, 400, 2), (-10, 500, 2), (-5, 700, 3), (0, 1000, 3),
+            (5, 1300, 4), (10, 1600, 5), (15, 2000, 6), (20, 3000, 6)
+        };
+
+        public static (int Skill, int TimeMs, int Depth) GetAiLevelSettings(int level)
+            => AiLevels[Mathf.Clamp(level, MinAiLevel, MaxAiLevel) - 1];
 
         [Header("Fairy-Stockfish (GPL v3, PC·Android arm64)")]
         public bool useFairyStockfish = false;
         [Tooltip("PC용, 프로젝트 루트 기준 경로 (Android는 앱에 포함된 엔진을 자동 사용)")]
         public string fairyStockfishPath = "Tools/FairyStockfish/fairy-stockfish-largeboard_x86-64-modern.exe";
-        [Range(-20, 20)] public int fairyStockfishSkill = 0;
 
         private FairyStockfishEngine fsEngine;
         private bool fsFailed;
@@ -41,6 +52,7 @@ namespace Janggi
                 Instance = this;
                 choPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Cho_Placement", (int)PlacementType.MaSangMaSang);
                 hanPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Han_Placement", (int)PlacementType.MaSangMaSang);
+                aiLevel = PlayerPrefs.GetInt(KeyAiLevel, aiLevel);
                 InitializeBoard(choPlacement, hanPlacement);
             }
             else Destroy(gameObject);
@@ -312,7 +324,7 @@ namespace Janggi
 #else
                 string path = System.IO.Path.Combine(Application.dataPath, "..", fairyStockfishPath);
 #endif
-                fsEngine = new FairyStockfishEngine(path, fairyStockfishSkill);
+                fsEngine = new FairyStockfishEngine(path);
             }
             catch (Exception e)
             {
@@ -345,11 +357,11 @@ namespace Janggi
             // 화면이 멈추지 않도록 판 복사본으로 백그라운드 스레드에서 계산
             PieceData[,] snapshot = CloneBoard(Board);
             Team team = aiTeam;
-            int depth = aiDepth, timeLimitMs = aiTimeLimitMs;
+            var level = GetAiLevelSettings(aiLevel);
             FairyStockfishEngine engine = GetFairyStockfish();
             var task = System.Threading.Tasks.Task.Run(() => engine != null
-                ? engine.GetBestMove(snapshot, team, timeLimitMs)
-                : JanggiAIHighLevel.GetBestMove(snapshot, team, depth, timeLimitMs));
+                ? engine.GetBestMove(snapshot, team, level.Skill, level.TimeMs)
+                : JanggiAIHighLevel.GetBestMove(snapshot, team, level.Depth, level.TimeMs));
             while (!task.IsCompleted) yield return null; // 이 사이 무르기·기권 시 코루틴이 중단되어 결과를 버림
             aiRoutine = null;
 
