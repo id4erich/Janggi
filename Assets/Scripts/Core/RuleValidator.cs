@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Janggi
@@ -299,11 +300,24 @@ namespace Janggi
             }
         }
 
-        // 이동 후 자기 궁이 장군 상태로 남는 수(장군 방치·자충수)는 제외
-        public static List<BoardPos> GetLegalMoves(PieceData piece, PieceData[,] board)
+        // 빅장: 두 궁이 같은 세로줄에서 사이에 말 없이 마주 봄
+        public static bool KingsFacing(PieceData[,] board)
+        {
+            BoardPos? cho = FindKing(board, Team.Cho), han = FindKing(board, Team.Han);
+            if (!cho.HasValue || !han.HasValue || cho.Value.x != han.Value.x) return false;
+            int x = cho.Value.x;
+            for (int y = Math.Min(cho.Value.y, han.Value.y) + 1; y < Math.Max(cho.Value.y, han.Value.y); y++)
+                if (board[x, y] != null) return false;
+            return true;
+        }
+
+        // 이동 후 자기 궁이 장군 상태로 남는 수(장군 방치·자충수)는 제외.
+        // bikjangRule: 빅장이 걸린 상태에서는 빅장을 유지하는 수도 제외 (풀거나 한수 쉼으로 받아들여야 함, Fairy-Stockfish와 같음)
+        public static List<BoardPos> GetLegalMoves(PieceData piece, PieceData[,] board, bool bikjangRule = false)
         {
             var legal = new List<BoardPos>();
             BoardPos from = piece.Position;
+            bool facingBefore = bikjangRule && KingsFacing(board);
             foreach (var to in GetValidMoves(piece, board))
             {
                 PieceData captured = board[to.x, to.y];
@@ -311,7 +325,7 @@ namespace Janggi
                 board[from.x, from.y] = null;
                 piece.Position = to;
 
-                bool exposed = IsInCheck(board, piece.Team);
+                bool exposed = IsInCheck(board, piece.Team) || (facingBefore && KingsFacing(board));
 
                 board[from.x, from.y] = piece;
                 board[to.x, to.y] = captured;
@@ -322,14 +336,14 @@ namespace Janggi
             return legal;
         }
 
-        public static bool HasAnyLegalMove(PieceData[,] board, Team team)
+        public static bool HasAnyLegalMove(PieceData[,] board, Team team, bool bikjangRule = false)
         {
             for (int x = 0; x < 9; x++)
             {
                 for (int y = 0; y < 10; y++)
                 {
                     PieceData p = board[x, y];
-                    if (p != null && p.Team == team && !p.IsCaptured && GetLegalMoves(p, board).Count > 0)
+                    if (p != null && p.Team == team && !p.IsCaptured && GetLegalMoves(p, board, bikjangRule).Count > 0)
                         return true;
                 }
             }
@@ -337,9 +351,11 @@ namespace Janggi
         }
 
         // 장기는 한수 쉼이 가능하므로 장군 상태에서 피할 수가 없을 때만 외통
-        public static bool IsCheckmate(PieceData[,] board, Team team)
+        public static bool IsCheckmate(PieceData[,] board, Team team, bool bikjangRule = false)
         {
-            return IsInCheck(board, team) && !HasAnyLegalMove(board, team);
+            // 빅장 중에는 장군이어도 한수 쉼이 허용되므로 외통이 아님
+            if (bikjangRule && KingsFacing(board)) return false;
+            return IsInCheck(board, team) && !HasAnyLegalMove(board, team, bikjangRule);
         }
 
         public static BoardPos? FindKing(PieceData[,] board, Team team)

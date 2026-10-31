@@ -134,6 +134,48 @@ namespace Janggi.Tests
             Assert.AreEqual("3. 초 차 1,1→1,7 ×병", lines[2]);
         }
 
+        // 두 궁 사이(4번 줄)의 졸·병을 치워 빅장을 만듦
+        private void OpenCenterFile()
+        {
+            gm.Board[4, 3] = null;
+            gm.Board[4, 6] = null;
+        }
+
+        [Test]
+        public void DoublePass_EndsGame()
+        {
+            gm.PassTurn();
+            Assert.IsFalse(gm.IsGameOver);
+            gm.PassTurn();
+            Assert.IsTrue(gm.IsGameOver);
+        }
+
+        [Test]
+        public void Bikjang_IgnoredInCasual_EndsGameWhenAcceptedOtherwise()
+        {
+            OpenCenterFile();
+            Assert.IsTrue(RuleValidator.KingsFacing(gm.Board));
+
+            gm.ruleSet = GameManager.RuleSet.Casual;
+            gm.PassTurn(); // 일반 규칙: 빅장이 아님, 한 번 쉰 것뿐
+            Assert.IsFalse(gm.IsGameOver);
+
+            gm.InitializeBoard(PlacementType.MaSangMaSang, PlacementType.MaSangMaSang);
+            OpenCenterFile();
+            gm.ruleSet = GameManager.RuleSet.Traditional;
+            // 빅장 중에는 빅장을 유지하는 수는 못 둠 (초 차가 옆으로 비켜도 빅장 유지)
+            Assert.IsFalse(gm.MakeMove(new BoardPos(0, 0), new BoardPos(0, 1)));
+            gm.PassTurn(); // 빅장을 받아들임
+            Assert.IsTrue(gm.IsGameOver);
+        }
+
+        [Test]
+        public void MaterialPoints_CountsStandardValues()
+        {
+            Assert.AreEqual(72, gm.MaterialPoints(Team.Cho)); // 차26 포14 마10 상6 사6 졸10
+            Assert.AreEqual(72, gm.MaterialPoints(Team.Han));
+        }
+
         [Test]
         public void TimeOut_LosesOnlyWhenLimitIsSet()
         {

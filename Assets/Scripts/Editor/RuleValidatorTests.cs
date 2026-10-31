@@ -90,6 +90,25 @@ namespace Janggi.Tests
         }
 
         [Test]
+        public void Bikjang_MustBeBroken_AndIsNotCheckmate()
+        {
+            Place(PieceType.King, Team.Cho, 4, 1);
+            Place(PieceType.King, Team.Han, 4, 8);
+            var car = Place(PieceType.Car, Team.Cho, 0, 4);
+            Assert.IsTrue(RuleValidator.KingsFacing(board));
+
+            var withRule = RuleValidator.GetLegalMoves(car, board, bikjangRule: true);
+            Assert.Contains(new BoardPos(4, 4), withRule);                 // 사이를 막아 빅장을 풂
+            CollectionAssert.DoesNotContain(withRule, new BoardPos(0, 5)); // 빅장 유지 → 불가
+
+            var withoutRule = RuleValidator.GetLegalMoves(car, board);
+            Assert.Contains(new BoardPos(0, 5), withoutRule);
+
+            // 빅장 중에는 한수 쉼이 가능하므로 외통이 아님
+            Assert.IsFalse(RuleValidator.IsCheckmate(board, Team.Cho, bikjangRule: true));
+        }
+
+        [Test]
         public void Horse_BlockedByPieceOnItsNeck()
         {
             var horse = Place(PieceType.Horse, Team.Cho, 4, 4);

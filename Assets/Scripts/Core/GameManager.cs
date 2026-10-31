@@ -48,6 +48,36 @@ namespace Janggi
         public PlacementType hanPlacement = PlacementType.MaSangMaSang;
 
         public enum GameMode { VsAiAsCho = 0, VsAiAsHan = 1, TwoPlayers = 2 }
+
+        // 규칙: Fairy-Stockfish 장기 변형과 1:1로 맞춰 AI도 같은 규칙으로 둠
+        //  Casual      janggicasual      빅장 없음, 연속 한수 쉼 = 무승부
+        //  Traditional janggitraditional 빅장을 받아들이면(한수 쉼) 무승부
+        //  Tournament  janggi            빅장·연속 한수 쉼으로 끝나면 점수 판정 (한 1.5점 덤)
+        public enum RuleSet { Casual = 0, Traditional = 1, Tournament = 2 }
+        public const string KeyRuleSet = "Janggi_RuleSet";
+        public RuleSet ruleSet = RuleSet.Casual;
+        public bool BikjangRule => ruleSet != RuleSet.Casual;
+        public string EngineVariant => ruleSet == RuleSet.Tournament ? "janggi" : ruleSet == RuleSet.Traditional ? "janggitraditional" : "janggicasual";
+
+        // 점수 판정용 기물 점수 (궁 제외)
+        public int MaterialPoints(Team team)
+        {
+            int points = 0;
+            foreach (var p in Board)
+            {
+                if (p == null || p.Team != team) continue;
+                switch (p.Type)
+                {
+                    case PieceType.Car: points += 13; break;
+                    case PieceType.Cannon: points += 7; break;
+                    case PieceType.Horse: points += 5; break;
+                    case PieceType.Elephant:
+                    case PieceType.Guard: points += 3; break;
+                    case PieceType.Pawn: points += 2; break;
+                }
+            }
+            return points;
+        }
         public const string KeyGameMode = "Janggi_GameMode";
 
         public GameMode Mode => !isPlayerVsAI ? GameMode.TwoPlayers : aiTeam == Team.Han ? GameMode.VsAiAsCho : GameMode.VsAiAsHan;
@@ -82,6 +112,7 @@ namespace Janggi
                 aiLevel = PlayerPrefs.GetInt(KeyAiLevel, aiLevel);
                 moveTimeLimitSec = PlayerPrefs.GetInt(KeyMoveTimeLimit, moveTimeLimitSec);
                 ApplyMode((GameMode)PlayerPrefs.GetInt(KeyGameMode, (int)Mode));
+                ruleSet = (RuleSet)PlayerPrefs.GetInt(KeyRuleSet, (int)ruleSet);
                 InitializeBoard(choPlacement, hanPlacement);
 
                 // 앱이 꺼졌다 켜지면 두던 대국을 이어 둠
@@ -132,13 +163,13 @@ namespace Janggi
         [Serializable]
         private class SavedGame
         {
-            public int cho, han, mode;
+            public int cho, han, mode, rules;
             public List<int> moves = new List<int>(); // 한수 쉼 = -1, 그 외 from + to * 100 (칸 번호 = x + y * 9)
         }
 
         public string SaveToJson()
         {
-            var game = new SavedGame { cho = (int)choPlacement, han = (int)hanPlacement, mode = (int)Mode };
+            var game = new SavedGame { cho = (int)choPlacement, han = (int)hanPlacement, mode = (int)Mode, rules = (int)ruleSet };
             MoveRecord[] records = historyStack.ToArray();
             Array.Reverse(records); // Stack은 마지막 수부터 나오므로 처음 수부터로 뒤집음
             foreach (var r in records)
@@ -156,6 +187,7 @@ namespace Janggi
             choPlacement = (PlacementType)game.cho;
             hanPlacement = (PlacementType)game.han;
             ApplyMode((GameMode)game.mode);
+            ruleSet = (RuleSet)game.rules;
             InitializeBoard(choPlacement, hanPlacement);
             replaying = true;
             try
@@ -240,9 +272,10 @@ namespace Janggi
             int moveCount = historyStack.Count;
             PieceData[,] snapshot = CloneBoard(Board);
             Team team = CurrentTurn;
+            string variant = EngineVariant;
             FairyStockfishEngine engine = GetFairyStockfish();
             var task = System.Threading.Tasks.Task.Run(() => engine != null
-                ? engine.GetBestMove(snapshot, team, 20, 800)
+                ? engine.GetBestMove(snapshot, team, variant, 20, 800)
                 : JanggiAIHighLevel.GetBestMove(snapshot, team, 4, 800));
             while (!task.IsCompleted) yield return null;
             hintRoutine = null;
@@ -350,7 +383,7 @@ namespace Janggi
             PieceData p = Board[from.x, from.y];
             if (p == null || p.Team != CurrentTurn) return false;
 
-            var validMoves = RuleValidator.GetLegalMoves(p, Board);
+            var validMoves = RuleValidator.GetLegalMoves(p, Board, BikjangRule);
             if (!validMoves.Contains(to)) return false;
 
             PieceData target = Board[to.x, to.y];
@@ -384,7 +417,7 @@ namespace Janggi
             Team opponentTeam = (CurrentTurn == Team.Cho) ? Team.Han : Team.Cho;
             bool isCheck = RuleValidator.IsInCheck(Board, opponentTeam);
 
-            if (isCheck && !RuleValidator.HasAnyLegalMove(Board, opponentTeam))
+            if (RuleValidator.IsCheckmate(Board, opponentTeam, BikjangRule))
             {
                 EndGame(p.Team, "외통");
                 return true;
@@ -407,16 +440,48 @@ namespace Janggi
         public void PassTurn()
         {
             if (IsGameOver) return;
-            if (RuleValidator.IsInCheck(Board, CurrentTurn))
+            bool bikjang = BikjangRule && RuleValidator.KingsFacing(Board);
+            if (RuleValidator.IsInCheck(Board, CurrentTurn) && !bikjang) // 빅장 중에는 장군이어도 한수 쉼 가능
             {
                 Debug.Log("장군 상태에서는 한수 쉼을 할 수 없습니다.");
                 return;
             }
 
             if (!replaying) Debug.Log($"{CurrentTurn} 패스(한수 쉼)");
+            bool previousWasPass = historyStack.Count > 0 && historyStack.Peek().MovedPiece == null;
             historyStack.Push(new MoveRecord { Mover = CurrentTurn });
+
+            // 빅장을 한수 쉼으로 받아들이거나, 두 사람이 연달아 한수 쉼을 두면 대국 종료
+            if (bikjang || previousWasPass)
+            {
+                EndByRule(bikjang ? "빅장" : "연속 한수 쉼");
+                return;
+            }
             EndTurn();
             PersistGame();
+        }
+
+        // 빅장·연속 한수 쉼으로 끝난 대국: 대회 규칙은 점수 판정, 나머지는 무승부
+        private void EndByRule(string reason)
+        {
+            if (ruleSet == RuleSet.Tournament)
+            {
+                int cho = MaterialPoints(Team.Cho), han = MaterialPoints(Team.Han);
+                // 한(후공)에 1.5점 덤: 점수가 같거나 초가 1점 앞서도 한 승
+                Team winner = cho - han - 1 > 0 ? Team.Cho : Team.Han;
+                EndGame(winner, $"{reason} · 점수 초 {cho} : 한 {han + 1.5f:0.#}");
+            }
+            else EndDraw(reason);
+        }
+
+        private void EndDraw(string reason)
+        {
+            IsGameOver = true;
+            StopAiRoutines();
+            PersistGame();
+            if (replaying) return;
+            if (MobileJanggiUIManager.Instance != null)
+                MobileJanggiUIManager.Instance.ShowGameOverDialog($"{reason}으로 끝남", false, isDraw: true); // reason: 빅장·연속 한수 쉼 (받침으로 끝남)
         }
 
         // 되돌릴 사람의 수가 있을 때만 (AI가 먼저 둔 첫 수만 있으면 되돌려도 AI가 다시 둘 뿐)
@@ -558,9 +623,10 @@ namespace Janggi
             PieceData[,] snapshot = CloneBoard(Board);
             Team team = aiTeam;
             var level = GetAiLevelSettings(aiLevel);
+            string variant = EngineVariant;
             FairyStockfishEngine engine = GetFairyStockfish();
             var task = System.Threading.Tasks.Task.Run(() => engine != null
-                ? engine.GetBestMove(snapshot, team, level.Skill, level.TimeMs)
+                ? engine.GetBestMove(snapshot, team, variant, level.Skill, level.TimeMs)
                 : JanggiAIHighLevel.GetBestMove(snapshot, team, level.Depth, level.TimeMs));
             while (!task.IsCompleted) yield return null; // 이 사이 무르기·기권 시 코루틴이 중단되어 결과를 버림
             aiRoutine = null;

@@ -8,8 +8,8 @@ namespace Janggi
     // PC는 System.Diagnostics.Process, Android(arm64)는 Java Runtime.exec로 실행
     public class FairyStockfishEngine : IDisposable
     {
-        // 앱 규칙(빅장·점수 판정 없음)과 가장 가까운 장기 변형
-        private const string Variant = "janggicasual";
+        // 장기 변형은 대국 규칙(GameManager.EngineVariant)에 따라 요청마다 지정. 시작값은 빅장·점수 판정 없는 변형
+        private string currentVariant = "janggicasual";
 
         private readonly object sync = new object();
 
@@ -87,13 +87,13 @@ namespace Janggi
         {
             Send("uci");
             WaitFor("uciok");
-            Send($"setoption name UCI_Variant value {Variant}");
+            Send($"setoption name UCI_Variant value {currentVariant}");
             Send("isready");
             WaitFor("readyok");
         }
 
         // 백그라운드 스레드에서 호출 가능. 이전 요청이 끝날 때까지 기다린 뒤 실행
-        public Move GetBestMove(PieceData[,] board, Team sideToMove, int skillLevel, int moveTimeMs)
+        public Move GetBestMove(PieceData[,] board, Team sideToMove, string variant, int skillLevel, int moveTimeMs)
         {
             lock (sync)
             {
@@ -103,6 +103,13 @@ namespace Janggi
                 try
                 {
 #endif
+                if (variant != currentVariant)
+                {
+                    currentVariant = variant;
+                    Send($"setoption name UCI_Variant value {variant}");
+                    Send("isready");
+                    WaitFor("readyok");
+                }
                 Send($"setoption name Skill Level value {skillLevel}"); // 단 변경이 다음 수부터 바로 반영되도록 매번 지정
                 Send($"position fen {ToFen(board, sideToMove)}");
                 Send($"go movetime {moveTimeMs}");

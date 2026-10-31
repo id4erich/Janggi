@@ -79,6 +79,8 @@ namespace Janggi
         private int timeLimitSelected;
         private GameManager.GameMode modeSelected;
         private static readonly string[] ModeLabels = { "AI와 · 나는 초", "AI와 · 나는 한", "둘이서" };
+        private GameManager.RuleSet rulesSelected;
+        private static readonly string[] RuleLabels = { "일반 (빅장 없음)", "빅장 = 무승부", "대회 (점수 판정)" };
 
         private void Start()
         {
@@ -89,6 +91,7 @@ namespace Janggi
                 aiSelectedLevel = GameManager.Instance.aiLevel;
                 timeLimitSelected = GameManager.Instance.moveTimeLimitSec;
                 modeSelected = GameManager.Instance.Mode;
+                rulesSelected = GameManager.Instance.ruleSet;
             }
 
             BuildMobileUI();

@@ -36,7 +36,7 @@ namespace Janggi
             card.transform.SetParent(dialogOverlay.transform, false);
 
             RectTransform cardRect = card.AddComponent<RectTransform>();
-            cardRect.sizeDelta = new Vector2(860, 1590);
+            cardRect.sizeDelta = new Vector2(860, 1820);
 
             Image cardBg = card.AddComponent<Image>();
             cardBg.sprite = pillSprite;
@@ -47,7 +47,7 @@ namespace Janggi
             GameObject titleObj = new GameObject("TitleText");
             titleObj.transform.SetParent(card.transform, false);
             RectTransform titleRect = titleObj.AddComponent<RectTransform>();
-            titleRect.anchoredPosition = new Vector2(0, 725);
+            titleRect.anchoredPosition = new Vector2(0, 840);
             titleRect.sizeDelta = new Vector2(800, 70);
 
             Text titleTxt = titleObj.AddComponent<Text>();
@@ -62,36 +62,39 @@ namespace Janggi
             GameObject subTitleObj = new GameObject("SubTitleText");
             subTitleObj.transform.SetParent(card.transform, false);
             RectTransform subTitleRect = subTitleObj.AddComponent<RectTransform>();
-            subTitleRect.anchoredPosition = new Vector2(0, 665);
+            subTitleRect.anchoredPosition = new Vector2(0, 780);
             subTitleRect.sizeDelta = new Vector2(800, 50);
 
             Text subTitleTxt = subTitleObj.AddComponent<Text>();
             subTitleTxt.font = font;
-            subTitleTxt.text = "대국 방식, 마상 차림, AI 수준, 제한 시간을 선택하세요";
+            subTitleTxt.text = "대국 방식, 규칙, 마상 차림, AI 수준, 제한 시간을 선택하세요";
             subTitleTxt.fontSize = 26;
             subTitleTxt.alignment = TextAnchor.MiddleCenter;
             subTitleTxt.color = new Color(0.8f, 0.9f, 1.0f);
 
             // Section 0: Game Mode
-            CreateChoiceSection(card.transform, 555, "대국 방식", ModeLabels, (int)modeSelected, i => modeSelected = (GameManager.GameMode)i, font, pillSprite);
+            CreateChoiceSection(card.transform, 670, "대국 방식", ModeLabels, (int)modeSelected, i => modeSelected = (GameManager.GameMode)i, font, pillSprite);
+
+            // Section 0-1: Rules (Fairy-Stockfish 변형과 1:1)
+            CreateChoiceSection(card.transform, 440, "규칙 (빅장·한수 쉼 두 번이면 끝)", RuleLabels, (int)rulesSelected, i => rulesSelected = (GameManager.RuleSet)i, font, pillSprite);
 
             // Section 1: Cho Placement Selection
-            CreateTeamPlacementSection(card.transform, "🔵 초(楚) 차림", 325, Team.Cho, font, pillSprite);
+            CreateTeamPlacementSection(card.transform, "🔵 초(楚) 차림", 210, Team.Cho, font, pillSprite);
 
             // Section 2: Han (AI) Placement Selection
-            CreateTeamPlacementSection(card.transform, "🔴 한(漢) 차림", 75, Team.Han, font, pillSprite);
+            CreateTeamPlacementSection(card.transform, "🔴 한(漢) 차림", -40, Team.Han, font, pillSprite);
 
             // Section 3: AI Level Selection
-            CreateAiLevelSection(card.transform, -175, font, pillSprite);
+            CreateAiLevelSection(card.transform, -290, font, pillSprite);
 
             // Section 4: Move Time Limit
-            CreateTimeLimitSection(card.transform, -405, font, pillSprite);
+            CreateTimeLimitSection(card.transform, -520, font, pillSprite);
 
             // Start / Apply Button
             GameObject startBtnObj = new GameObject("Btn_StartGame");
             startBtnObj.transform.SetParent(card.transform, false);
             RectTransform startRect = startBtnObj.AddComponent<RectTransform>();
-            startRect.anchoredPosition = new Vector2(0, -615);
+            startRect.anchoredPosition = new Vector2(0, -730);
             startRect.sizeDelta = new Vector2(460, 96);
 
             Image startImg = startBtnObj.AddComponent<Image>();
@@ -108,6 +111,7 @@ namespace Janggi
                 PlayerPrefs.SetInt(GameManager.KeyAiLevel, aiSelectedLevel);
                 PlayerPrefs.SetInt(GameManager.KeyMoveTimeLimit, timeLimitSelected);
                 PlayerPrefs.SetInt(GameManager.KeyGameMode, (int)modeSelected);
+                PlayerPrefs.SetInt(GameManager.KeyRuleSet, (int)rulesSelected);
                 PlayerPrefs.Save();
 
                 Destroy(dialogOverlay);
@@ -116,6 +120,7 @@ namespace Janggi
                 {
                     GameManager.Instance.aiLevel = aiSelectedLevel;
                     GameManager.Instance.moveTimeLimitSec = timeLimitSelected;
+                    GameManager.Instance.ruleSet = rulesSelected;
                     bool modeChanged = GameManager.Instance.Mode != modeSelected;
                     GameManager.Instance.ApplyMode(modeSelected);
                     if (modeChanged)
@@ -153,7 +158,7 @@ namespace Janggi
             GameObject noticeObj = new GameObject("OpenSourceNotice");
             noticeObj.transform.SetParent(card.transform, false);
             RectTransform noticeRect = noticeObj.AddComponent<RectTransform>();
-            noticeRect.anchoredPosition = new Vector2(0, -730);
+            noticeRect.anchoredPosition = new Vector2(0, -845);
             noticeRect.sizeDelta = new Vector2(800, 80);
 
             Text noticeTxt = noticeObj.AddComponent<Text>();

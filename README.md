@@ -21,6 +21,10 @@ A Korean chess (janggi) app built with Unity. It targets Android (arm64) and use
 - The game in progress is saved after every move and resumed when the app restarts (undo history included)
 - When a General is in check it is marked with a red ring; the "hint" button shows the engine's suggested move with an arrow
 - Move record (Menu → Move record): numbered list of moves with side, piece, coordinates and captures
+- Rule sets matching Fairy-Stockfish's janggi variants, so the AI plays by the same rules:
+  - Casual (`janggicasual`): no bikjang; two passes in a row end the game in a draw
+  - Bikjang draw (`janggitraditional`): when the Generals face each other on an open file, the opponent must break it or accept with a pass, which ends the game in a draw
+  - Tournament (`janggi`): bikjang or two passes end the game and the winner is decided by material points (Han gets a 1.5-point bonus)
 - Optional move time limit (none / 30 s / 60 s); running out of time loses the game
 - Captured pieces are lined up on the table beside the board (pieces captured by Cho at the bottom, by Han at the top)
 - Voice lines (such as "Janggun!", the call for check) are spoken with the device's built-in TextToSpeech (works offline)
@@ -63,7 +67,7 @@ The in-game text is in Korean.
 cd Tools/RuleCheck && dotnet run -c Release -- 2026 200
 ```
 
-Arguments are the random seed and the number of games. At the time of writing, 260 games (about 38,000 positions) matched exactly.
+Arguments are the random seed, the number of games and optionally the variant (`janggicasual`, `janggitraditional`, `janggi`). At the time of writing, 260 games (about 38,000 positions) matched exactly.
 
 ## AI level calibration
 

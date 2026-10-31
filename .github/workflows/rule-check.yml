@@ -26,3 +26,6 @@ jobs:
       - name: Compare legal moves with Fairy-Stockfish (40 random games)
         working-directory: Tools/RuleCheck
         run: dotnet run -c Release -- ${{ github.run_number }} 40
+      - name: Same with bikjang rule (janggitraditional, 40 random games)
+        working-directory: Tools/RuleCheck
+        run: dotnet run -c Release -- ${{ github.run_number }} 40 janggitraditional

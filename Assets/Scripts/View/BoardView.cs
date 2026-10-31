@@ -550,7 +550,7 @@ namespace Janggi
         private void HighlightMoves(PieceData piece)
         {
             ClearHighlights();
-            var moves = RuleValidator.GetLegalMoves(piece, GameManager.Instance.Board);
+            var moves = RuleValidator.GetLegalMoves(piece, GameManager.Instance.Board, GameManager.Instance.BikjangRule);
             
             // 판 위에 납작하게 놓인 표시: 빈 칸은 초록 원판, 잡을 수 있는 상대 말은 아래에 붉은 고리
             Material emptyMat = FlatMaterial(new Color(0.16f, 0.48f, 0.26f));
