@@ -238,7 +238,7 @@ namespace Janggi
 
             CreateSheetRow(sheet, -100f, "new_game", "새 대국 · 차림과 AI 수준", Color.white, () => { CloseOverlay(); ShowPlacementSetupDialog(); });
             CreateSheetRow(sheet, -224f, "record", "기보 · 둔 수 목록", Color.white, ShowMoveRecordSheet);
-            CreateSheetRow(sheet, -348f, "settings", "설정 · 효과음과 음성", Color.white, ShowSettingsSheet);
+            CreateSheetRow(sheet, -348f, "settings", "설정 · 소리와 진동", Color.white, ShowSettingsSheet);
             CreateSheetRow(sheet, -472f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
             CreateSheetRow(sheet, -596f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "두던 대국은 저장되어 다음에 이어서 둘 수 있습니다.", "나가기", OnExitClicked));
         }
