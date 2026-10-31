@@ -260,9 +260,16 @@ namespace Janggi
             string cleanText = textToSay.Replace("~", "").Replace("^", "").Replace("  ", " ");
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (!ttsReady) return; // 초기화 전(앱 시작 직후)이면 대사 생략
-            tts.Call<int>("setPitch", pitchMultiplier);
-            using (var bundle = new AndroidJavaObject("android.os.Bundle"))
-                tts.Call<int>("speak", cleanText, 0 /* QUEUE_FLUSH */, bundle, "janggi");
+            try
+            {
+                tts.Call<int>("setPitch", pitchMultiplier);
+                using (var bundle = new AndroidJavaObject("android.os.Bundle"))
+                    tts.Call<int>("speak", cleanText, 0 /* QUEUE_FLUSH */, bundle, "janggi");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"TextToSpeech 재생 실패: {e.Message}");
+            }
 #else
             Debug.Log($"[TTS] {cleanText}");
 #endif
@@ -270,26 +277,36 @@ namespace Janggi
 
 #if UNITY_ANDROID && !UNITY_EDITOR
         private AndroidJavaObject tts;
-        private volatile bool ttsReady;
+        private bool ttsReady;
+        private volatile int ttsInitStatus = int.MinValue; // Android UI 스레드의 onInit 결과, Update에서 처리
 
         private class TtsInitListener : AndroidJavaProxy
         {
-            private readonly System.Action<int> callback;
-            public TtsInitListener(System.Action<int> callback) : base("android.speech.tts.TextToSpeech$OnInitListener") { this.callback = callback; }
-            public void onInit(int status) => callback(status); // Java 인터페이스 메서드 이름 그대로
+            private readonly JanggiSoundManager owner;
+            public TtsInitListener(JanggiSoundManager owner) : base("android.speech.tts.TextToSpeech$OnInitListener") { this.owner = owner; }
+            [UnityEngine.Scripting.Preserve] // Java가 이름으로 호출하므로 IL2CPP 스트리핑에서 보존
+            public void onInit(int status) => owner.ttsInitStatus = status;
         }
 
         private void InitTextToSpeech()
         {
             tts = new AndroidJavaObject("android.speech.tts.TextToSpeech",
-                UnityEngine.Android.AndroidApplication.currentActivity,
-                new TtsInitListener(status =>
-                {
-                    if (status != 0) { Debug.LogWarning($"TextToSpeech 초기화 실패: {status}"); return; }
-                    using (var korean = new AndroidJavaObject("java.util.Locale", "ko", "KR"))
-                        tts.Call<int>("setLanguage", korean);
-                    ttsReady = true;
-                }));
+                UnityEngine.Android.AndroidApplication.currentActivity, new TtsInitListener(this));
+        }
+
+        private void Update()
+        {
+            if (ttsReady || ttsInitStatus == int.MinValue || tts == null) return;
+            int status = ttsInitStatus;
+            ttsInitStatus = int.MinValue;
+            if (status != 0) { Debug.LogWarning($"TextToSpeech 초기화 실패: {status}"); return; }
+
+            int lang;
+            using (var korean = new AndroidJavaObject("java.util.Locale", "ko", "KR"))
+                lang = tts.Call<int>("setLanguage", korean);
+            // LANG_MISSING_DATA(-1)·LANG_NOT_SUPPORTED(-2)면 엉뚱한 언어로 읽지 않도록 대사를 끔
+            if (lang < 0) { Debug.LogWarning($"TextToSpeech 한국어 미지원: {lang}"); return; }
+            ttsReady = true;
         }
 
         private void OnDestroy()

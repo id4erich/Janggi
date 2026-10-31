@@ -26,6 +26,7 @@ namespace Janggi
         private void Start()
         {
             if (mainCamera == null) mainCamera = Camera.main;
+            if (mainCamera == null) return;
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
             mainCamera.backgroundColor = BackgroundColor;
             mainCamera.fieldOfView = defaultFieldOfView;

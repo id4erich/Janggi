@@ -19,6 +19,7 @@ namespace Janggi
         private float turnTimer = 60f;
         private bool isTimerRunning = true;
         private bool isMatchEnded = false;
+        private int thinkingDots;
 
         private const string KEY_WIN = "Janggi_Wins";
         private const string KEY_LOSS = "Janggi_Losses";
@@ -109,10 +110,16 @@ namespace Janggi
             // AI가 생각하는 동안은 점이 움직이는 "생각 중" 표시 (타이머는 사람 차례에만 흐름)
             if (gm != null && !gm.IsHumanTurn && !gm.IsGameOver && turnStatusText != null)
             {
-                string dots = new string('.', 1 + (int)(Time.time * 2.5f) % 3);
-                turnStatusText.text = $"🔴 한(漢) 생각 중{dots} · AI {gm.aiLevel}단";
-                if (timerText != null) { timerText.text = "⏱️ --"; timerText.color = Color.yellow; }
+                int dotCount = 1 + (int)(Time.time * 2.5f) % 3;
+                if (dotCount != thinkingDots) // 점 개수가 바뀔 때만 문자열을 새로 만듦
+                {
+                    thinkingDots = dotCount;
+                    string ai = gm.aiTeam == Team.Cho ? "🔵 초(楚)" : "🔴 한(漢)";
+                    turnStatusText.text = $"{ai} 생각 중{new string('.', dotCount)} · AI {gm.aiLevel}단";
+                    if (timerText != null) { timerText.text = "⏱️ --"; timerText.color = Color.yellow; }
+                }
             }
+            else thinkingDots = 0;
 
             if (isTimerRunning && humanTurn && turnTimer > 0f)
             {

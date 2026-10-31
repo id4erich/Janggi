@@ -61,8 +61,13 @@ namespace Janggi
 
         private GameObject selectionHighlight;
 
+        // 판을 다시 그릴 때마다 증가. 진행 중이던 이동 애니메이션이 옛 판에 표시를 남기지 않게 함
+        private int boardGeneration;
+
         public void RedrawBoard()
         {
+            boardGeneration++;
+            SetupBoardSurface();
             DeselectPiece();
             ClearHighlights();
             ClearLastMoveHighlight();
@@ -175,6 +180,17 @@ namespace Janggi
                 boardGrid = GameObject.CreatePrimitive(PrimitiveType.Plane);
                 boardGrid.name = "BoardGrid";
             }
+
+            // 판 뒤엎기 연출 뒤 새 대국: 물리를 걷어내고 원위치·평면 콜라이더(클릭 판정용)로 복구
+            Rigidbody flipRb = boardGrid.GetComponent<Rigidbody>();
+            if (flipRb != null)
+            {
+                flipRb.isKinematic = true;
+                Destroy(flipRb);
+                Destroy(boardGrid.GetComponent<BoxCollider>());
+                boardGrid.AddComponent<MeshCollider>();
+            }
+            boardGrid.transform.rotation = Quaternion.identity;
 
             // 기물 월드 좌표계 Vector3(-4 ~ +4, -4.5 ~ +4.5) 교차점과 100% 정밀 밀착 정렬
             boardGrid.transform.position = new Vector3(0f, 0f, 0f);
@@ -580,6 +596,7 @@ namespace Janggi
 
         private IEnumerator AnimatePieceMovement(GameObject movingObj, Vector3 startPos, Vector3 endPos, BoardPos from, BoardPos to, GameObject capturedObj)
         {
+            int generation = boardGeneration;
             float duration = 0.45f; // 이동 애니메이션 소요 시간
             float elapsedTime = 0f;
             float arcHeight = 0.8f; // 공중으로 둥실 부드럽게 들려서 포물선 이동하는 3D 곡선 높이
@@ -631,6 +648,9 @@ namespace Janggi
                 Destroy(capturedObj);
                 RefreshCapturedTray();
             }
+
+            // 애니메이션 도중 무르기·새 대국으로 판이 다시 그려졌으면 옛 좌표에 표시를 남기지 않음
+            if (generation != boardGeneration) yield break;
 
             // 최근 착수 이동 지점 표시링 생성 (시작 위치: 파란원, 끝 위치: 노란원)
             CreateLastMoveMarkers(from, to);
