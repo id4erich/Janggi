@@ -1,0 +1,190 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace Janggi
+{
+    public class CameraUIController : MonoBehaviour
+    {
+        public Camera mainCamera;
+        
+        [Header("Camera Settings")]
+        public float moveSpeed = 5.0f;
+        public float zoomSpeed = 2.0f;
+        public float rotateSpeed = 45.0f;
+
+        private float currentPitch = 90.0f;
+        private float currentYaw = 0.0f;
+        private Vector3 targetLookAt = new Vector3(0f, 0f, 0f);
+        private float distance = 11.2f;
+
+        private void Start()
+        {
+            if (mainCamera == null) mainCamera = Camera.main;
+            UpdateCameraTransform();
+        }
+
+        private void Update()
+        {
+            // 우클릭 마우스 드래그로 장기판 자유 회전/이동
+#if ENABLE_INPUT_SYSTEM
+            if (UnityEngine.InputSystem.Mouse.current != null)
+            {
+                if (UnityEngine.InputSystem.Mouse.current.rightButton.isPressed)
+                {
+                    Vector2 delta = UnityEngine.InputSystem.Mouse.current.delta.ReadValue();
+                    currentYaw += delta.x * 0.2f;
+                    currentPitch = Mathf.Clamp(currentPitch - delta.y * 0.2f, 30f, 90f);
+                    UpdateCameraTransform();
+                }
+
+                float scroll = UnityEngine.InputSystem.Mouse.current.scroll.ReadValue().y;
+                if (Mathf.Abs(scroll) > 0.01f)
+                {
+                    distance = Mathf.Clamp(distance - scroll * 0.005f, 6f, 25f);
+                    UpdateCameraTransform();
+                }
+            }
+#else
+            if (Input.GetMouseButton(1))
+            {
+                currentYaw += Input.GetAxis("Mouse X") * 2f;
+                currentPitch = Mathf.Clamp(currentPitch - Input.GetAxis("Mouse Y") * 2f, 30f, 90f);
+                UpdateCameraTransform();
+            }
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.01f)
+            {
+                distance = Mathf.Clamp(distance - scroll * 5f, 6f, 25f);
+                UpdateCameraTransform();
+            }
+#endif
+        }
+
+        public void UpdateCameraTransform()
+        {
+            if (mainCamera == null) return;
+
+            // 장기판 좌우 전체 폭(9.6 단위)이 화면 좌우 양 끝에 여백 없이 100% 딱 들어맞는 정밀 거리 자동 연산
+            float aspect = mainCamera.aspect;
+            float targetDistance = distance;
+
+            // 정사영/직교 거리 연산 (FOV 60도 기준 좌우 폭 꽉 채움)
+            if (aspect > 0.01f)
+            {
+                // 장기판 좌우 끝(x=-4.8~4.8)을 절묘하게 꽉 채우는 타겟 거리
+                targetDistance = 5.2f / (Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect);
+            }
+
+            Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0f);
+            Vector3 dir = rot * new Vector3(0, 0, -targetDistance);
+            mainCamera.transform.position = targetLookAt + dir;
+            mainCamera.transform.LookAt(targetLookAt);
+        }
+
+        public void MoveUp() { targetLookAt += mainCamera.transform.up * 1.5f; UpdateCameraTransform(); }
+        public void MoveDown() { targetLookAt -= mainCamera.transform.up * 1.5f; UpdateCameraTransform(); }
+        public void MoveLeft() { targetLookAt -= mainCamera.transform.right * 1.5f; UpdateCameraTransform(); }
+        public void MoveRight() { targetLookAt += mainCamera.transform.right * 1.5f; UpdateCameraTransform(); }
+
+        public void ZoomIn() { distance = Mathf.Clamp(distance - 2f, 6f, 25f); UpdateCameraTransform(); }
+        public void ZoomOut() { distance = Mathf.Clamp(distance + 2f, 6f, 25f); UpdateCameraTransform(); }
+
+        public void ResetView()
+        {
+            targetLookAt = new Vector3(0f, 0f, 0f);
+            currentPitch = 90.0f;
+            currentYaw = 0.0f;
+            distance = 18.5f;
+            UpdateCameraTransform();
+        }
+
+        public void ShakeCamera(float duration = 0.6f, float magnitude = 0.8f)
+        {
+            StartCoroutine(ShakeCoroutine(duration, magnitude));
+        }
+
+        private System.Collections.IEnumerator ShakeCoroutine(float duration, float magnitude)
+        {
+            Vector3 originalLookAt = targetLookAt;
+            float elapsed = 0.0f;
+
+            while (elapsed < duration)
+            {
+                float offsetX = Random.Range(-1f, 1f) * magnitude;
+                float offsetY = Random.Range(-1f, 1f) * magnitude;
+
+                targetLookAt = originalLookAt + new Vector3(offsetX, 0f, offsetY);
+                UpdateCameraTransform();
+
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            targetLookAt = originalLookAt;
+            UpdateCameraTransform();
+        }
+
+        private void CreateCameraControllerUI()
+        {
+            // Canvas 생성
+            GameObject canvasObj = new GameObject("CameraControlCanvas");
+            Canvas canvas = canvasObj.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvasObj.AddComponent<CanvasScaler>();
+            canvasObj.AddComponent<GraphicRaycaster>();
+
+            // UI Panel
+            GameObject panel = new GameObject("ControlPanel");
+            panel.transform.SetParent(canvasObj.transform, false);
+            RectTransform panelRect = panel.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(1, 0); // 우측 하단
+            panelRect.anchorMax = new Vector2(1, 0);
+            panelRect.pivot = new Vector2(1, 0);
+            panelRect.anchoredPosition = new Vector2(-20, 20);
+            panelRect.sizeDelta = new Vector2(160, 220);
+
+            Image panelBg = panel.AddComponent<Image>();
+            panelBg.color = new Color(0.1f, 0.1f, 0.1f, 0.65f);
+
+            // 방향 이동 버튼 생성 (상, 하, 좌, 우, 리셋, 줌)
+            CreateButton(panel.transform, "▲", new Vector2(0, 60), new Vector2(40, 40), MoveUp);
+            CreateButton(panel.transform, "▼", new Vector2(0, -20), new Vector2(40, 40), MoveDown);
+            CreateButton(panel.transform, "◄", new Vector2(-45, 20), new Vector2(40, 40), MoveLeft);
+            CreateButton(panel.transform, "►", new Vector2(45, 20), new Vector2(40, 40), MoveRight);
+
+            CreateButton(panel.transform, "⟲ Reset", new Vector2(0, 20), new Vector2(45, 35), ResetView);
+            CreateButton(panel.transform, "+ Zoom", new Vector2(-40, -70), new Vector2(65, 35), ZoomIn);
+            CreateButton(panel.transform, "- Zoom", new Vector2(40, -70), new Vector2(65, 35), ZoomOut);
+        }
+
+        private void CreateButton(Transform parent, string label, Vector2 pos, Vector2 size, UnityEngine.Events.UnityAction action)
+        {
+            GameObject btnObj = new GameObject($"Btn_{label}");
+            btnObj.transform.SetParent(parent, false);
+
+            RectTransform rect = btnObj.AddComponent<RectTransform>();
+            rect.anchoredPosition = pos;
+            rect.sizeDelta = size;
+
+            Image img = btnObj.AddComponent<Image>();
+            img.color = new Color(0.25f, 0.25f, 0.3f, 0.9f);
+
+            Button btn = btnObj.AddComponent<Button>();
+            btn.onClick.AddListener(action);
+
+            GameObject textObj = new GameObject("Text");
+            textObj.transform.SetParent(btnObj.transform, false);
+            RectTransform textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.sizeDelta = Vector2.zero;
+
+            Text txt = textObj.AddComponent<Text>();
+            txt.text = label;
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.white;
+            txt.fontSize = 14;
+        }
+    }
+}
