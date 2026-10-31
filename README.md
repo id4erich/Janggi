@@ -108,6 +108,10 @@ Build from the `src` folder of [Fairy-Stockfish](https://github.com/fairy-stockf
 
 Strip it with `llvm-strip` and place it in `Assets/Plugins/Android/libs/arm64-v8a/`. Android does not allow executing files from the app's data directory, so the engine is shipped under a `.so` name; the installer then extracts it to the native library directory, where it may be executed. At runtime the app looks up that directory and starts the engine with `Runtime.exec`.
 
+## Privacy
+
+The app collects no personal data and sends nothing over the network; see [`PRIVACY.md`](PRIVACY.md).
+
 ## License
 
 Seongwon Janggi is licensed under the GNU GPL v3 (see [`LICENSE`](LICENSE)).

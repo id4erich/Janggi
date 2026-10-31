@@ -106,6 +106,10 @@ python Tools/PieceArt/bake_board_texture.py
 
 빌드한 뒤 `llvm-strip`으로 디버그 정보를 지우고 `Assets/Plugins/Android/libs/arm64-v8a/`에 넣습니다. Android는 앱 데이터 폴더의 파일을 실행하지 못하게 막기 때문에, 엔진을 `.so` 이름으로 넣어 설치할 때 네이티브 라이브러리 폴더에 풀리게 합니다. 앱은 실행 중에 이 폴더에서 엔진을 찾아 `Runtime.exec`로 실행합니다.
 
+## 개인정보
+
+앱은 개인정보를 수집하지 않고 인터넷으로 아무것도 보내지 않습니다. 자세한 내용은 [`PRIVACY.md`](PRIVACY.md)를 보세요.
+
 ## 라이선스
 
 성원장기 앱 코드: GNU GPL v3 (`LICENSE`).

@@ -238,7 +238,7 @@ namespace Janggi
             rect.anchorMin = new Vector2(0.5f, 0.65f);
             rect.anchorMax = new Vector2(0.5f, 0.65f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(600, 110);
+            rect.sizeDelta = new Vector2(940, 130);
 
             Image bg = bannerObj.AddComponent<Image>();
             bg.sprite = GetRoundedSprite(48);
@@ -255,7 +255,7 @@ namespace Janggi
             Text txt = textObj.AddComponent<Text>();
             txt.font = uiFont; // 화면 구성 때 한 번 불러 둔 글꼴 재사용 (띄울 때마다 새로 만들면 쌓임)
             txt.text = msg;
-            txt.fontSize = 36;
+            txt.fontSize = 40;
             txt.fontStyle = FontStyle.Bold;
             txt.alignment = TextAnchor.MiddleCenter;
             txt.color = textColor;
