@@ -103,6 +103,16 @@ namespace Janggi
             // 장기판(BoardGrid) 수직 및 회전 엎기 애니메이션
             if (boardGrid != null)
             {
+                // 평면 MeshCollider는 움직이는 Rigidbody와 함께 못 쓰므로 판 두께만 한 상자 콜라이더로 교체
+                MeshCollider planeCol = boardGrid.GetComponent<MeshCollider>();
+                if (planeCol != null)
+                {
+                    Destroy(planeCol);
+                    BoxCollider box = boardGrid.AddComponent<BoxCollider>();
+                    box.size = new Vector3(10f, 0.4f, 10f);
+                    box.center = new Vector3(0f, -0.2f, 0f);
+                }
+
                 Rigidbody boardRb = boardGrid.GetComponent<Rigidbody>();
                 if (boardRb == null) boardRb = boardGrid.AddComponent<Rigidbody>();
                 boardRb.mass = 5f;
@@ -181,8 +191,10 @@ namespace Janggi
                 GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 body.name = "BoardBody";
                 Destroy(body.GetComponent<Collider>());
-                body.transform.position = new Vector3(0f, -0.2f - 0.002f, 0f);
-                body.transform.localScale = new Vector3(9.52f, 0.4f, 10.71f);
+                // 윗면의 자식으로 붙여 판 뒤엎기 연출 때 함께 움직임 (윗면 스케일 0.952 x 1.071 보정)
+                body.transform.SetParent(boardGrid.transform, false);
+                body.transform.localPosition = new Vector3(0f, -0.2f - 0.002f, 0f);
+                body.transform.localScale = new Vector3(10f, 0.4f, 10f);
                 body.GetComponent<MeshRenderer>().sharedMaterial = Resources.Load<Material>("BoardArt/BoardSide");
             }
 
@@ -191,7 +203,7 @@ namespace Janggi
             {
                 GameObject table = GameObject.CreatePrimitive(PrimitiveType.Plane);
                 table.name = "Table";
-                Destroy(table.GetComponent<Collider>());
+                table.layer = 2; // Ignore Raycast: 떨어지는 말은 받치되 판 바깥 터치가 가장자리 칸 선택으로 이어지지 않게
                 table.transform.position = new Vector3(0f, -0.402f, 0f);
                 table.transform.localScale = new Vector3(8f, 1f, 8f);
                 Material tableMat = new Material(Resources.Load<Material>("BoardArt/BoardSide"));
@@ -232,6 +244,20 @@ namespace Janggi
         // Resources의 템플릿 재질을 복제해 _NORMALMAP 셰이더 변형이 빌드에서 빠지지 않게 함
         private static readonly Dictionary<string, Material[]> pieceMaterialCache = new Dictionary<string, Material[]>();
         private static Material pieceSideMaterial;
+
+        // 메시·표시용 단색 재질은 종류마다 한 번만 만들어 재사용 (매번 new 하면 오브젝트를 지워도 해제되지 않고 쌓임)
+        private static readonly Dictionary<PieceType, Mesh> pieceMeshCache = new Dictionary<PieceType, Mesh>();
+        private static readonly Dictionary<Color, Material> flatMaterialCache = new Dictionary<Color, Material>();
+
+        private static Material FlatMaterial(Color color)
+        {
+            if (flatMaterialCache.TryGetValue(color, out Material mat)) return mat;
+            Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
+            if (litShader == null) litShader = Shader.Find("Standard");
+            mat = new Material(litShader) { color = color };
+            flatMaterialCache[color] = mat;
+            return mat;
+        }
 
         private static Material[] GetPieceMaterials(Team team, PieceType type)
         {
@@ -293,7 +319,9 @@ namespace Janggi
 
             // 2. 8각 3D 조각판 부착
             MeshFilter mf = obj.AddComponent<MeshFilter>();
-            mf.mesh = JanggiMeshGenerator.CreateOctagonalPieceMesh(radius, height);
+            if (!pieceMeshCache.TryGetValue(type, out Mesh mesh))
+                pieceMeshCache[type] = mesh = JanggiMeshGenerator.CreateOctagonalPieceMesh(radius, height);
+            mf.sharedMesh = mesh;
 
             MeshRenderer ren = obj.AddComponent<MeshRenderer>();
             ren.sharedMaterials = GetPieceMaterials(team, type);
@@ -453,9 +481,6 @@ namespace Janggi
         {
             ClearSelectionHighlight();
 
-            Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-            if (litShader == null) litShader = Shader.Find("Standard");
-
             selectionHighlight = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             selectionHighlight.name = "SelectionHighlight";
             selectionHighlight.transform.position = BoardToWorldPos(pos) + new Vector3(0f, -0.04f, 0f);
@@ -463,9 +488,7 @@ namespace Janggi
             Destroy(selectionHighlight.GetComponent<Collider>());
 
             Renderer ren = selectionHighlight.GetComponent<Renderer>();
-            Material mat = new Material(litShader);
-            mat.color = new Color(0.2f, 1.0f, 0.3f, 0.8f); // 초록색 선택 표시링
-            ren.material = mat;
+            ren.sharedMaterial = FlatMaterial(new Color(0.2f, 1.0f, 0.3f)); // 초록색 선택 표시링
 
             // 고른 말을 살짝 들어 올려 집어 든 느낌을 줌
             if (pieceRenderers.TryGetValue(pos, out liftedPiece))
@@ -497,12 +520,9 @@ namespace Janggi
             ClearHighlights();
             var moves = RuleValidator.GetLegalMoves(piece, GameManager.Instance.Board);
             
-            Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-            if (litShader == null) litShader = Shader.Find("Standard");
-
             // 판 위에 납작하게 놓인 표시: 빈 칸은 초록 원판, 잡을 수 있는 상대 말은 아래에 붉은 고리
-            Material emptyMat = new Material(litShader) { color = new Color(0.16f, 0.48f, 0.26f) };
-            Material captureMat = new Material(litShader) { color = new Color(0.80f, 0.16f, 0.10f) };
+            Material emptyMat = FlatMaterial(new Color(0.16f, 0.48f, 0.26f));
+            Material captureMat = FlatMaterial(new Color(0.80f, 0.16f, 0.10f));
 
             foreach (var m in moves)
             {
@@ -621,9 +641,6 @@ namespace Janggi
             // 기존 누적된 최근 이동 마커 완전 삭제
             ClearLastMoveHighlight();
 
-            Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-            if (litShader == null) litShader = Shader.Find("Standard");
-
             // 출발 위치 마커: 판 위의 작은 짙은 점 (말이 떠난 자리)
             lastMoveFromHighlight = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             lastMoveFromHighlight.name = "LastMoveFrom";
@@ -633,9 +650,7 @@ namespace Janggi
             Destroy(lastMoveFromHighlight.GetComponent<Collider>());
 
             Renderer fromRen = lastMoveFromHighlight.GetComponent<Renderer>();
-            Material fromMat = new Material(litShader);
-            fromMat.color = new Color(0.36f, 0.22f, 0.12f);
-            fromRen.material = fromMat;
+            fromRen.sharedMaterial = FlatMaterial(new Color(0.36f, 0.22f, 0.12f));
             fromRen.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // 도착 위치 마커: 말 아래로 비치는 금색 고리
@@ -647,9 +662,7 @@ namespace Janggi
             Destroy(lastMoveToHighlight.GetComponent<Collider>());
 
             Renderer toRen = lastMoveToHighlight.GetComponent<Renderer>();
-            Material toMat = new Material(litShader);
-            toMat.color = new Color(0.95f, 0.70f, 0.15f);
-            toRen.material = toMat;
+            toRen.sharedMaterial = FlatMaterial(new Color(0.95f, 0.70f, 0.15f));
             toRen.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
