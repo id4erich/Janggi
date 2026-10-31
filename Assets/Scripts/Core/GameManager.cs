@@ -47,28 +47,154 @@ namespace Janggi
         public PlacementType choPlacement = PlacementType.MaSangMaSang;
         public PlacementType hanPlacement = PlacementType.MaSangMaSang;
 
+        [Tooltip("한 수 제한 시간(초). 0이면 제한 없음, 시간을 넘기면 시간패")]
+        public int moveTimeLimitSec = 0;
+        public const string KeyMoveTimeLimit = "Janggi_MoveTimeLimit";
+        public const string KeySavedGame = "Janggi_SavedGame";
+
+        // 저장 중인 수를 다시 두는 동안 화면 이벤트·AI·저장을 끔
+        private bool replaying;
+        private bool persistEnabled; // 실제 게임 인스턴스(Awake 실행)만 저장. 에디터 테스트가 저장값을 덮어쓰지 않게
+        private Coroutine hintRoutine;
+
         private void Awake()
         {
             if (Instance == null)
             {
                 Instance = this;
+                persistEnabled = true;
                 choPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Cho_Placement", (int)PlacementType.MaSangMaSang);
                 hanPlacement = (PlacementType)PlayerPrefs.GetInt("Janggi_Han_Placement", (int)PlacementType.MaSangMaSang);
                 aiLevel = PlayerPrefs.GetInt(KeyAiLevel, aiLevel);
+                moveTimeLimitSec = PlayerPrefs.GetInt(KeyMoveTimeLimit, moveTimeLimitSec);
                 InitializeBoard(choPlacement, hanPlacement);
+
+                // 앱이 꺼졌다 켜지면 두던 대국을 이어 둠
+                string saved = PlayerPrefs.GetString(KeySavedGame, "");
+                if (saved.Length > 0 && !LoadFromJson(saved))
+                {
+                    PlayerPrefs.DeleteKey(KeySavedGame);
+                    InitializeBoard(choPlacement, hanPlacement);
+                }
             }
             else Destroy(gameObject);
         }
 
         private void Start()
         {
+            // AI가 생각하던 중에 앱이 꺼졌다면 이어서 AI 차례를 진행
+            if (!IsGameOver && !IsHumanTurn) aiRoutine = StartCoroutine(ProcessAITurn());
         }
 
         public void StartGame(PlacementType cho, PlacementType han)
         {
+            StopAiRoutines();
             choPlacement = cho;
             hanPlacement = han;
             InitializeBoard(choPlacement, hanPlacement);
+            PersistGame();
+        }
+
+        private void StopAiRoutines()
+        {
+            if (aiRoutine != null) { StopCoroutine(aiRoutine); aiRoutine = null; }
+            if (hintRoutine != null) { StopCoroutine(hintRoutine); hintRoutine = null; }
+        }
+
+        // ── 대국 저장·이어 하기 ──────────────────────────────
+        // 시작 차림과 둔 수 목록만 저장하고, 불러올 때 같은 수를 다시 둬서 무르기 기록까지 복원
+
+        [Serializable]
+        private class SavedGame
+        {
+            public int cho, han;
+            public List<int> moves = new List<int>(); // 한수 쉼 = -1, 그 외 from + to * 100 (칸 번호 = x + y * 9)
+        }
+
+        public string SaveToJson()
+        {
+            var game = new SavedGame { cho = (int)choPlacement, han = (int)hanPlacement };
+            MoveRecord[] records = historyStack.ToArray();
+            Array.Reverse(records); // Stack은 마지막 수부터 나오므로 처음 수부터로 뒤집음
+            foreach (var r in records)
+                game.moves.Add(r.MovedPiece == null ? -1 : (r.From.x + r.From.y * 9) + (r.To.x + r.To.y * 9) * 100);
+            return JsonUtility.ToJson(game);
+        }
+
+        public bool LoadFromJson(string json)
+        {
+            SavedGame game;
+            try { game = JsonUtility.FromJson<SavedGame>(json); }
+            catch (Exception) { return false; }
+            if (game == null) return false;
+
+            choPlacement = (PlacementType)game.cho;
+            hanPlacement = (PlacementType)game.han;
+            InitializeBoard(choPlacement, hanPlacement);
+            replaying = true;
+            try
+            {
+                foreach (int m in game.moves)
+                {
+                    if (IsGameOver) return false;
+                    if (m < 0)
+                    {
+                        int before = historyStack.Count;
+                        PassTurn();
+                        if (historyStack.Count == before) return false;
+                        continue;
+                    }
+                    int from = m % 100, to = m / 100;
+                    if (!MakeMove(new BoardPos(from % 9, from / 9), new BoardPos(to % 9, to / 9))) return false;
+                }
+            }
+            finally { replaying = false; }
+            return !IsGameOver;
+        }
+
+        private void PersistGame()
+        {
+            if (replaying || !persistEnabled) return;
+            if (IsGameOver) PlayerPrefs.DeleteKey(KeySavedGame); // 끝난 대국은 이어 두지 않음
+            else PlayerPrefs.SetString(KeySavedGame, SaveToJson());
+            PlayerPrefs.Save();
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused) PlayerPrefs.Save();
+        }
+
+        // ── 힌트 ──────────────────────────────────────────
+        // 사람 차례에 엔진 최고 실력으로 짧게 읽어 추천 수를 돌려줌 (한수 쉼 추천이면 From == To)
+        public bool RequestHint(Action<Move> onResult)
+        {
+            if (IsGameOver || !IsHumanTurn || aiRoutine != null || hintRoutine != null) return false;
+            hintRoutine = StartCoroutine(HintRoutine(onResult));
+            return true;
+        }
+
+        private IEnumerator HintRoutine(Action<Move> onResult)
+        {
+            int moveCount = historyStack.Count;
+            PieceData[,] snapshot = CloneBoard(Board);
+            Team team = CurrentTurn;
+            FairyStockfishEngine engine = GetFairyStockfish();
+            var task = System.Threading.Tasks.Task.Run(() => engine != null
+                ? engine.GetBestMove(snapshot, team, 20, 800)
+                : JanggiAIHighLevel.GetBestMove(snapshot, team, 4, 800));
+            while (!task.IsCompleted) yield return null;
+            hintRoutine = null;
+            // 계산하는 사이 수가 바뀌었으면 옛 국면의 추천은 버림
+            if (task.IsFaulted || historyStack.Count != moveCount || CurrentTurn != team) yield break;
+            onResult(task.Result);
+        }
+
+        // ── 제한 시간 ──────────────────────────────────────
+        public void TimeOut()
+        {
+            if (IsGameOver || moveTimeLimitSec <= 0 || !IsHumanTurn) return;
+            EndGame(CurrentTurn == Team.Cho ? Team.Han : Team.Cho, "시간 초과");
         }
 
         public void InitializeBoard(PlacementType choPlacement, PlacementType hanPlacement)
@@ -82,6 +208,7 @@ namespace Janggi
 
             CurrentTurn = Team.Cho;
             IsGameOver = false;
+            historyStack.Clear(); // 새 대국에서 무르기가 이전 대국으로 넘어가지 않게
         }
 
         private void SetupTeamPieces(Team team, int rowKingLine, int rowPalaceFront, int rowPawnLine, int rowCannonLine, PlacementType placement)
@@ -183,7 +310,7 @@ namespace Janggi
             Board[from.x, from.y] = null;
             p.Position = to;
 
-            OnPieceMoved?.Invoke(from, to);
+            if (!replaying) OnPieceMoved?.Invoke(from, to);
 
             // 1. 궁(King) 잡힘 시 즉시 승부 결정 종료!
             if (isKingCaptured)
@@ -202,7 +329,7 @@ namespace Janggi
                 return true;
             }
 
-            if (isCheck)
+            if (isCheck && !replaying)
             {
                 if (MobileJanggiUIManager.Instance != null)
                 {
@@ -212,6 +339,7 @@ namespace Janggi
 
             // 턴 전환
             EndTurn();
+            PersistGame();
             return true;
         }
 
@@ -224,21 +352,18 @@ namespace Janggi
                 return;
             }
 
-            Debug.Log($"{CurrentTurn} 패스(한수 쉼)");
+            if (!replaying) Debug.Log($"{CurrentTurn} 패스(한수 쉼)");
             historyStack.Push(new MoveRecord { Mover = CurrentTurn });
             EndTurn();
+            PersistGame();
         }
 
         public bool UndoMove()
         {
             if (IsGameOver || historyStack.Count == 0) return false;
 
-            // AI가 아직 두기 전이면 대기 중인 AI 차례를 취소
-            if (aiRoutine != null)
-            {
-                StopCoroutine(aiRoutine);
-                aiRoutine = null;
-            }
+            // AI가 아직 두기 전이면 대기 중인 AI 차례(와 힌트 계산)를 취소
+            StopAiRoutines();
 
             // Player 대 AI 대전 시 사람 차례가 될 때까지 되돌림 (한수 쉼 포함)
             do
@@ -267,6 +392,7 @@ namespace Janggi
 
             // AI가 선공(초)인 대국에서 첫 수까지 되돌린 경우 AI가 다시 둠
             if (!IsHumanTurn) aiRoutine = StartCoroutine(ProcessAITurn());
+            PersistGame();
             return true;
         }
 
@@ -282,11 +408,9 @@ namespace Janggi
         private void EndGame(Team winner, string reason)
         {
             IsGameOver = true;
-            if (aiRoutine != null)
-            {
-                StopCoroutine(aiRoutine);
-                aiRoutine = null;
-            }
+            StopAiRoutines();
+            PersistGame();
+            if (replaying) return;
 
             string who = (winner == Team.Cho) ? "🔵 초" : "🔴 한";
             if (isPlayerVsAI) who += (winner == aiTeam) ? "(AI)" : "(Player)";
@@ -302,6 +426,7 @@ namespace Janggi
         private void EndTurn()
         {
             CurrentTurn = (CurrentTurn == Team.Cho) ? Team.Han : Team.Cho;
+            if (replaying) return;
 
             if (MobileJanggiUIManager.Instance != null)
             {

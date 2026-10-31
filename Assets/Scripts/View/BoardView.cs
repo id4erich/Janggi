@@ -254,6 +254,8 @@ namespace Janggi
                 }
             }
             RefreshCapturedTray();
+            ClearHint();
+            UpdateCheckMarker();
         }
 
         // 회양목 장기말 재질: 윗면은 음각 붓글씨(Tools/PieceArt/bake_piece_textures.py로 생성), 옆면은 나뭇결.
@@ -575,6 +577,8 @@ namespace Janggi
             DeselectPiece();
             ClearHighlights();
             ClearLastMoveHighlight();
+            ClearHint();
+            ClearCheckMarker();
 
             GameObject capturedObj = null;
             if (pieceRenderers.TryGetValue(to, out capturedObj))
@@ -654,6 +658,7 @@ namespace Janggi
 
             // 최근 착수 이동 지점 표시링 생성 (시작 위치: 파란원, 끝 위치: 노란원)
             CreateLastMoveMarkers(from, to);
+            UpdateCheckMarker();
         }
 
         private void CreateLastMoveMarkers(BoardPos from, BoardPos to)
@@ -684,6 +689,74 @@ namespace Janggi
             Renderer toRen = lastMoveToHighlight.GetComponent<Renderer>();
             toRen.sharedMaterial = FlatMaterial(new Color(0.95f, 0.70f, 0.15f));
             toRen.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        // ── 장군 표시·힌트 ────────────────────────────────
+
+        private GameObject checkMarker;
+        private readonly List<GameObject> hintMarkers = new List<GameObject>();
+        private static readonly Color HintColor = new Color(0.15f, 0.75f, 0.95f);
+
+        private GameObject CreateFlatMarker(string name, Vector3 center, Vector3 scale, Color color, PrimitiveType shape = PrimitiveType.Cylinder, float y = 0.009f)
+        {
+            GameObject marker = GameObject.CreatePrimitive(shape);
+            marker.name = name;
+            Destroy(marker.GetComponent<Collider>());
+            marker.transform.position = new Vector3(center.x, y, center.z);
+            marker.transform.localScale = scale;
+            Renderer ren = marker.GetComponent<Renderer>();
+            ren.sharedMaterial = FlatMaterial(color);
+            ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return marker;
+        }
+
+        // 둘 차례인 쪽이 장군을 받고 있으면 그 궁 아래에 붉은 고리 (외통으로 끝난 판도 표시)
+        private void UpdateCheckMarker()
+        {
+            ClearCheckMarker();
+            GameManager gm = GameManager.Instance;
+            if (gm == null || !RuleValidator.IsInCheck(gm.Board, gm.CurrentTurn)) return;
+            BoardPos? king = RuleValidator.FindKing(gm.Board, gm.CurrentTurn);
+            if (king.HasValue)
+                checkMarker = CreateFlatMarker("CheckMarker", BoardToWorldPos(king.Value), new Vector3(1.22f, 0.004f, 1.22f), new Color(0.95f, 0.12f, 0.10f));
+        }
+
+        private void ClearCheckMarker()
+        {
+            if (checkMarker != null) Destroy(checkMarker);
+            checkMarker = null;
+        }
+
+        // 추천 수: 출발 칸 고리 + 도착 칸 점 + 둘을 잇는 화살 막대
+        public void ShowHint(Move move)
+        {
+            ClearHint();
+            if (move.From == move.To)
+            {
+                if (MobileJanggiUIManager.Instance != null) MobileJanggiUIManager.Instance.ShowToast("힌트: 한수 쉼");
+                return;
+            }
+
+            Vector3 from = BoardToWorldPos(move.From), to = BoardToWorldPos(move.To);
+            // 장군 표시(붉은 고리)와 겹쳐도 보이도록 조금 위에 그림
+            hintMarkers.Add(CreateFlatMarker("HintFrom", from, new Vector3(1.12f, 0.004f, 1.12f), HintColor, y: 0.013f));
+            hintMarkers.Add(CreateFlatMarker("HintTo", to, new Vector3(0.46f, 0.004f, 0.46f), HintColor, y: 0.013f));
+
+            Vector3 dir = to - from;
+            dir.y = 0f;
+            float gap = 0.5f; // 말에 가려지지 않게 양 끝을 비움
+            if (dir.magnitude > gap * 2f)
+            {
+                GameObject shaft = CreateFlatMarker("HintArrow", (from + to) * 0.5f, new Vector3(0.12f, 0.004f, dir.magnitude - gap * 2f), HintColor, PrimitiveType.Cube, 0.013f);
+                shaft.transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+                hintMarkers.Add(shaft);
+            }
+        }
+
+        private void ClearHint()
+        {
+            foreach (var m in hintMarkers) if (m != null) Destroy(m);
+            hintMarkers.Clear();
         }
 
         private void ClearLastMoveHighlight()

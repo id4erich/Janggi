@@ -68,6 +68,15 @@ def view():  # 시점: 회전 화살표 두 개
     return img
 
 
+def hint():  # 힌트: 전구
+    img, d = canvas()
+    d.ellipse([*p(32, 14), *p(96, 78)], outline=WHITE, width=W)
+    polyline(d, [(50, 74), (52, 90), (76, 90), (78, 74)])
+    polyline(d, [(52, 102), (76, 102)])
+    polyline(d, [(58, 114), (70, 114)])
+    return img
+
+
 def menu():  # 메뉴: 세 줄
     img, d = canvas()
     for y in (36, 64, 92):
@@ -100,7 +109,7 @@ def exit_icon():  # 나가기: 문과 화살표
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    for name, fn in [("undo", undo), ("pass", pass_turn), ("view", view), ("menu", menu),
+    for name, fn in [("undo", undo), ("pass", pass_turn), ("view", view), ("menu", menu), ("hint", hint),
                      ("new_game", new_game), ("flag", flag), ("exit", exit_icon)]:
         fn().resize((SIZE, SIZE), Image.LANCZOS).save(OUT / f"{name}.png")
     print("saved to", OUT)
