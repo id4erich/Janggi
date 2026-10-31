@@ -38,6 +38,7 @@ The in-game text is in Korean.
 | `Assets/Plugins/Android/AndroidManifest.xml` | Custom main manifest (Unity defaults plus the TTS engine query required on Android 11+) |
 | `Assets/Resources/PieceArt`, `BoardArt` | Pre-baked piece and board textures and materials |
 | `Tools/FairyStockfish` | Windows engine for the editor, AI level calibration script |
+| `Tools/RuleCheck` | Checks the rule engine against Fairy-Stockfish move generation |
 | `Tools/PieceArt` | Scripts that bake the piece and board textures |
 | `Tools/Fonts` | Brush-script fonts used only for baking textures (not shipped in the app) |
 
@@ -51,6 +52,16 @@ The in-game text is in Korean.
 - **Editor**: open `Assets/Scenes/SampleScene.unity` and press Play. In the editor the Windows engine in `Tools/FairyStockfish` is used.
 - **APK**: run **Build → Build Android APK** from the menu. The output is `Builds/Android/성원장기.apk`.
 - **Tests**: open **Window → General → Test Runner** and run the EditMode tests. They cover the rules, game flow, the AI and the engine integration.
+
+## Rule check against Fairy-Stockfish
+
+`Tools/RuleCheck` plays random games and, at every position, compares the legal moves from the app's `RuleValidator` with Fairy-Stockfish's `go perft 1` (janggicasual). Pass moves are excluded because the app has a separate pass button.
+
+```bash
+cd Tools/RuleCheck && dotnet run -c Release -- 2026 200
+```
+
+Arguments are the random seed and the number of games. At the time of writing, 260 games (about 38,000 positions) matched exactly.
 
 ## AI level calibration
 

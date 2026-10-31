@@ -36,6 +36,7 @@ Unity로 만든 한국 장기 앱입니다. Android(arm64)용으로 빌드하며
 | `Assets/Plugins/Android/AndroidManifest.xml` | 커스텀 메인 매니페스트(기본 구성 + Android 11 이상에서 TTS 엔진 조회 선언) |
 | `Assets/Resources/PieceArt`, `BoardArt` | 미리 구운 기물·장기판 텍스처와 재질 |
 | `Tools/FairyStockfish` | PC용 엔진, AI 단 보정 스크립트 |
+| `Tools/RuleCheck` | 규칙 엔진을 Fairy-Stockfish의 수 생성과 대조하는 도구 |
 | `Tools/PieceArt` | 기물·장기판 텍스처를 굽는 스크립트 |
 | `Tools/Fonts` | 텍스처를 구울 때 쓰는 붓글씨 글꼴(앱에는 포함되지 않음) |
 
@@ -49,6 +50,16 @@ Unity로 만든 한국 장기 앱입니다. Android(arm64)용으로 빌드하며
 - **에디터**: `Assets/Scenes/SampleScene.unity`를 열고 플레이합니다. PC에서는 `Tools/FairyStockfish`의 Windows용 엔진을 씁니다.
 - **APK**: 메뉴에서 **Build → Build Android APK**를 실행하면 `Builds/Android/성원장기.apk`가 만들어집니다.
 - **테스트**: **Window → General → Test Runner**의 EditMode 탭에서 실행합니다. 규칙, 게임 진행, AI, 엔진 연동을 검사합니다.
+
+## Fairy-Stockfish와 규칙 대조
+
+`Tools/RuleCheck`는 무작위 대국을 두면서 국면마다 앱의 `RuleValidator`가 계산한 둘 수 있는 수 전체를 Fairy-Stockfish의 `go perft 1`(janggicasual)과 비교합니다. 한수 쉼은 앱에서 별도 버튼이라 비교에서 뺍니다.
+
+```bash
+cd Tools/RuleCheck && dotnet run -c Release -- 2026 200
+```
+
+인자는 무작위 시드와 판 수입니다. 작성 시점에 260판(약 3만 8천 국면)에서 모두 일치했습니다.
 
 ## AI 단 보정
 

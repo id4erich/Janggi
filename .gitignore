@@ -27,3 +27,7 @@
 # 크래시 복구용 자동 저장 씬
 /Assets/_Recovery/
 /Assets/_Recovery.meta
+
+# 규칙 대조 도구 빌드 결과
+/Tools/RuleCheck/bin/
+/Tools/RuleCheck/obj/
