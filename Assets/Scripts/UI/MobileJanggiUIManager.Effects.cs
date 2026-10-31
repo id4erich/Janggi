@@ -247,7 +247,7 @@ namespace Janggi
             txtRect.sizeDelta = Vector2.zero;
 
             Text txt = textObj.AddComponent<Text>();
-            txt.font = Font.CreateDynamicFontFromOSFont("Malgun Gothic", 36) ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.font = uiFont; // 화면 구성 때 한 번 불러 둔 글꼴 재사용 (띄울 때마다 새로 만들면 쌓임)
             txt.text = msg;
             txt.fontSize = 36;
             txt.fontStyle = FontStyle.Bold;

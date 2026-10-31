@@ -16,9 +16,7 @@ namespace Janggi
             // 이미 열려 있는 팝업이 있다면 중복 생성 방지
             if (GameObject.Find("PlacementSetupDialog") != null) return;
 
-            Font font = Font.CreateDynamicFontFromOSFont("Malgun Gothic", 28) 
-                     ?? Font.CreateDynamicFontFromOSFont("NanumGothic", 28) 
-                     ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font font = uiFont; // 화면 구성 때 한 번 불러 둔 글꼴 재사용
 
             Sprite pillSprite = GetRoundedSprite(48);
 
