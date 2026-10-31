@@ -13,10 +13,12 @@ namespace Janggi
         public float rotateSpeed = 45.0f;
 
         [Tooltip("기본 시점 각도. 90이면 바로 위, 작을수록 비스듬히 내려다봐 기물 두께가 보임")]
-        public float defaultPitch = 60.0f;
+        public float defaultPitch = 68.0f;
+        [Tooltip("세로 시야각. 좁을수록 원근 왜곡이 줄어 판이 화면에 크게 들어옴")]
+        public float defaultFieldOfView = 38.0f;
         public static readonly Color BackgroundColor = new Color(0.13f, 0.10f, 0.08f); // 탁자 너머 어두운 방
 
-        private float currentPitch = 60.0f;
+        private float currentPitch = 68.0f;
         private float currentYaw = 0.0f;
         private Vector3 targetLookAt = new Vector3(0f, 0f, 0f);
         private float distance = 11.2f;
@@ -26,6 +28,7 @@ namespace Janggi
             if (mainCamera == null) mainCamera = Camera.main;
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
             mainCamera.backgroundColor = BackgroundColor;
+            mainCamera.fieldOfView = defaultFieldOfView;
             currentPitch = defaultPitch;
             UpdateCameraTransform();
         }
@@ -81,7 +84,8 @@ namespace Janggi
                 // 장기판 좌우 끝(x=-4.8~4.8)을 절묘하게 꽉 채우는 타겟 거리
                 targetDistance = 5.2f / (Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect);
                 // 비스듬히 볼 때는 가까운 쪽 판 가장자리가 더 넓게 보이므로 그만큼 물러남
-                targetDistance *= 1f + Mathf.Cos(currentPitch * Mathf.Deg2Rad) * 0.25f;
+                float fovRatio = Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Tan(30f * Mathf.Deg2Rad);
+                targetDistance *= 1f + Mathf.Cos(currentPitch * Mathf.Deg2Rad) * 0.25f * fovRatio;
             }
 
             Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0f);

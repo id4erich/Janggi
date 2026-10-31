@@ -405,7 +405,17 @@ namespace Janggi
             Material mat = new Material(litShader);
             mat.color = new Color(0.2f, 1.0f, 0.3f, 0.8f); // 초록색 선택 표시링
             ren.material = mat;
+
+            // 고른 말을 살짝 들어 올려 집어 든 느낌을 줌
+            if (pieceRenderers.TryGetValue(pos, out liftedPiece))
+            {
+                liftedPiece.transform.position = BoardToWorldPos(pos) + Vector3.up * 0.12f;
+                liftedPos = pos;
+            }
         }
+
+        private GameObject liftedPiece;
+        private BoardPos liftedPos;
 
         private void ClearSelectionHighlight()
         {
@@ -413,6 +423,11 @@ namespace Janggi
             {
                 Destroy(selectionHighlight);
                 selectionHighlight = null;
+            }
+            if (liftedPiece != null)
+            {
+                liftedPiece.transform.position = BoardToWorldPos(liftedPos);
+                liftedPiece = null;
             }
         }
 
@@ -424,17 +439,22 @@ namespace Janggi
             Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
             if (litShader == null) litShader = Shader.Find("Standard");
 
+            // 판 위에 납작하게 놓인 표시: 빈 칸은 초록 원판, 잡을 수 있는 상대 말은 아래에 붉은 고리
+            Material emptyMat = new Material(litShader) { color = new Color(0.16f, 0.48f, 0.26f) };
+            Material captureMat = new Material(litShader) { color = new Color(0.80f, 0.16f, 0.10f) };
+
             foreach (var m in moves)
             {
-                GameObject hl = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                bool isCapture = GameManager.Instance.Board[m.x, m.y] != null;
+                GameObject hl = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 hl.name = "Highlight";
-                hl.transform.position = BoardToWorldPos(m) + new Vector3(0f, 0.18f, 0f);
-                hl.transform.localScale = new Vector3(0.28f, 0.28f, 0.28f);
+                Vector3 p = BoardToWorldPos(m);
+                hl.transform.position = new Vector3(p.x, 0.008f, p.z);
+                hl.transform.localScale = isCapture ? new Vector3(1.02f, 0.004f, 1.02f) : new Vector3(0.30f, 0.004f, 0.30f);
 
                 Renderer ren = hl.GetComponent<Renderer>();
-                Material mat = new Material(litShader);
-                mat.color = new Color(1.0f, 0.9f, 0.1f, 0.85f); // 이동 가능 위치 노란색 작은 구체
-                ren.material = mat;
+                ren.sharedMaterial = isCapture ? captureMat : emptyMat;
+                ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
                 Destroy(hl.GetComponent<Collider>());
                 activeHighlights.Add(hl);
@@ -542,29 +562,33 @@ namespace Janggi
             Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
             if (litShader == null) litShader = Shader.Find("Standard");
 
-            // 출발 위치 마커 (파란원)
+            // 출발 위치 마커: 판 위의 작은 짙은 점 (말이 떠난 자리)
             lastMoveFromHighlight = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             lastMoveFromHighlight.name = "LastMoveFrom";
-            lastMoveFromHighlight.transform.position = BoardToWorldPos(from) + new Vector3(0f, -0.05f, 0f);
-            lastMoveFromHighlight.transform.localScale = new Vector3(0.85f, 0.02f, 0.85f);
+            Vector3 fromPos = BoardToWorldPos(from);
+            lastMoveFromHighlight.transform.position = new Vector3(fromPos.x, 0.007f, fromPos.z);
+            lastMoveFromHighlight.transform.localScale = new Vector3(0.34f, 0.004f, 0.34f);
             Destroy(lastMoveFromHighlight.GetComponent<Collider>());
 
             Renderer fromRen = lastMoveFromHighlight.GetComponent<Renderer>();
             Material fromMat = new Material(litShader);
-            fromMat.color = new Color(0.1f, 0.5f, 1.0f, 0.7f); // 파란원 (Blue Circle)
+            fromMat.color = new Color(0.36f, 0.22f, 0.12f);
             fromRen.material = fromMat;
+            fromRen.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-            // 도착 위치 마커 (노란원)
+            // 도착 위치 마커: 말 아래로 비치는 금색 고리
             lastMoveToHighlight = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             lastMoveToHighlight.name = "LastMoveTo";
-            lastMoveToHighlight.transform.position = BoardToWorldPos(to) + new Vector3(0f, -0.05f, 0f);
-            lastMoveToHighlight.transform.localScale = new Vector3(0.95f, 0.02f, 0.95f);
+            Vector3 toPos = BoardToWorldPos(to);
+            lastMoveToHighlight.transform.position = new Vector3(toPos.x, 0.007f, toPos.z);
+            lastMoveToHighlight.transform.localScale = new Vector3(1.0f, 0.004f, 1.0f);
             Destroy(lastMoveToHighlight.GetComponent<Collider>());
 
             Renderer toRen = lastMoveToHighlight.GetComponent<Renderer>();
             Material toMat = new Material(litShader);
-            toMat.color = new Color(1.0f, 0.85f, 0.0f, 0.8f); // 노란원 (Yellow Circle)
+            toMat.color = new Color(0.95f, 0.70f, 0.15f);
             toRen.material = toMat;
+            toRen.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         private void ClearLastMoveHighlight()

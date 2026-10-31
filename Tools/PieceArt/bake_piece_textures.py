@@ -14,13 +14,13 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "Assets/Resources/PieceArt"
 FONTS = {"Han": ROOT / "Tools/Fonts/YujiBoku-Regular.ttf", "Cho": ROOT / "Tools/Fonts/YujiSyuku-Regular.ttf"}
-INK = {"Han": (150, 22, 24), "Cho": (24, 62, 150)}
+INK = {"Han": (168, 10, 16), "Cho": (12, 46, 150)}  # 조명 아래에서도 바래 보이지 않게 진하게
 GLYPHS = {
     "King": {"Cho": "楚", "Han": "漢"}, "Guard": "士", "Car": "車", "Cannon": "包",
     "Horse": "馬", "Elephant": "象", "Pawn": {"Cho": "卒", "Han": "兵"},
 }
 SIZE = 512
-GLYPH_RATIO = 0.66      # 윗면 지름 대비 글자 크기
+GLYPH_RATIO = 0.74      # 윗면 지름 대비 글자 크기
 ENGRAVE_DEPTH = 6.0     # 노멀맵 세기 (클수록 깊게 파인 느낌)
 rng = np.random.default_rng(2026)
 
