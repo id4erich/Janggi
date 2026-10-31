@@ -94,11 +94,29 @@ namespace Janggi
             BuildMobileUI();
         }
 
+#if ENABLE_INPUT_SYSTEM
+        // 뒤로 가기(안드로이드)·ESC는 입력 이벤트로 받음. 매 프레임 키 상태를 보면 앱을 켠 뒤 첫 누름을 놓침
+        private bool backRequested;
+
+        private void OnEnable() => UnityEngine.InputSystem.InputSystem.onEvent += OnInputEvent;
+        private void OnDisable() => UnityEngine.InputSystem.InputSystem.onEvent -= OnInputEvent;
+
+        private void OnInputEvent(UnityEngine.InputSystem.LowLevel.InputEventPtr eventPtr, UnityEngine.InputSystem.InputDevice device)
+        {
+            if (!(device is UnityEngine.InputSystem.Keyboard keyboard)) return;
+            if (!eventPtr.IsA<UnityEngine.InputSystem.LowLevel.StateEvent>() && !eventPtr.IsA<UnityEngine.InputSystem.LowLevel.DeltaStateEvent>()) return;
+            // 이벤트가 적용되기 전이므로 isPressed는 이전 상태: 눌리지 않았다가 눌린 순간만
+            if (UnityEngine.InputSystem.InputControlExtensions.ReadValueFromEvent(keyboard.escapeKey, eventPtr, out float value) && value > 0.5f && !keyboard.escapeKey.isPressed)
+                backRequested = true;
+        }
+#endif
+
         private void Update()
         {
             // 뒤로 가기(안드로이드)·ESC: 열린 창이 있으면 닫고, 없으면 메뉴를 엶
 #if ENABLE_INPUT_SYSTEM
-            bool back = UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame;
+            bool back = backRequested;
+            backRequested = false;
 #else
             bool back = Input.GetKeyDown(KeyCode.Escape);
 #endif
