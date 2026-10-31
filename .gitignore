@@ -31,3 +31,4 @@
 # 규칙 대조 도구 빌드 결과
 /Tools/RuleCheck/bin/
 /Tools/RuleCheck/obj/
+!/Tools/RuleCheck/RuleCheck.csproj

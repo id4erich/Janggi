@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 규칙 엔진(RuleValidator)의 합법 수를 Fairy-Stockfish의 perft 1과 무작위 대국에서 대조
+       실행: dotnet run -c Release (인자: 시드, 판 수) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Scripts/Core/JanggiTypes.cs;../../Assets/Scripts/Core/RuleValidator.cs" />
+  </ItemGroup>
+</Project>
