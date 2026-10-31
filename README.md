@@ -82,6 +82,8 @@ python Tools/PieceArt/bake_board_texture.py
 
 ## 라이선스
 
+성원장기 앱 코드: GNU GPL v3 (`LICENSE`).
+
 이 앱에 들어 있거나 앱을 만드는 데 쓰는 외부 구성 요소의 라이선스입니다.
 
 | 구성 요소 | 라이선스 | 위치 |
@@ -91,4 +93,3 @@ python Tools/PieceArt/bake_board_texture.py
 
 Fairy-Stockfish는 앱과 별도 프로세스로 실행되며 UCI로 통신합니다. APK에 엔진이 들어 있으므로, 앱을 배포할 때 GPL v3 고지와 엔진 소스 위치를 함께 알려야 합니다. 앱 안에서는 차림 설정 창 아래쪽에 표시됩니다.
 
-앱 코드 자체의 라이선스는 아직 정하지 않았습니다.

@@ -499,13 +499,13 @@ namespace Janggi
             GameObject noticeObj = new GameObject("OpenSourceNotice");
             noticeObj.transform.SetParent(card.transform, false);
             RectTransform noticeRect = noticeObj.AddComponent<RectTransform>();
-            noticeRect.anchoredPosition = new Vector2(0, -535);
-            noticeRect.sizeDelta = new Vector2(800, 60);
+            noticeRect.anchoredPosition = new Vector2(0, -540);
+            noticeRect.sizeDelta = new Vector2(800, 80);
 
             Text noticeTxt = noticeObj.AddComponent<Text>();
             noticeTxt.font = font;
-            noticeTxt.text = "AI 엔진: Fairy-Stockfish (GNU GPL v3) · github.com/fairy-stockfish/Fairy-Stockfish\n기물 글씨: Yuji Boku·Yuji Syuku (SIL Open Font License 1.1)";
-            noticeTxt.fontSize = 17;
+            noticeTxt.text = "성원장기 (GNU GPL v3) · 소스: github.com/id4erich/Janggi\nAI 엔진: Fairy-Stockfish (GNU GPL v3) · github.com/fairy-stockfish/Fairy-Stockfish\n기물 글씨: Yuji Boku·Yuji Syuku (SIL Open Font License 1.1)";
+            noticeTxt.fontSize = 16;
             noticeTxt.alignment = TextAnchor.MiddleCenter;
             noticeTxt.color = new Color(0.65f, 0.70f, 0.78f);
         }
