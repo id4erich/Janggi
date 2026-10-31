@@ -960,37 +960,6 @@ namespace Janggi
             }
         }
 
-        private void CreateMaterialButton(Transform parent, string label, Vector2 pos, Vector2 size, Font font, Color bgColor, UnityEngine.Events.UnityAction action)
-        {
-            GameObject btnObj = new GameObject($"Btn_{label}");
-            btnObj.transform.SetParent(parent, false);
-
-            RectTransform rect = btnObj.AddComponent<RectTransform>();
-            rect.anchoredPosition = pos;
-            rect.sizeDelta = size;
-
-            Image img = btnObj.AddComponent<Image>();
-            img.color = bgColor;
-
-            Button btn = btnObj.AddComponent<Button>();
-            btn.onClick.AddListener(action);
-
-            GameObject txtObj = new GameObject("Label");
-            txtObj.transform.SetParent(btnObj.transform, false);
-            RectTransform txtRect = txtObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.sizeDelta = Vector2.zero;
-
-            Text txt = txtObj.AddComponent<Text>();
-            txt.font = font;
-            txt.text = label;
-            txt.fontSize = 25;
-            txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.color = Color.white;
-        }
-
         private void OnPassClicked()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsHumanTurn)
@@ -1045,51 +1014,43 @@ namespace Janggi
 
         public void ShowGameOverDialog(string resultMsg, bool isPlayerWin)
         {
-            GameObject canvasObj = GameObject.Find("MobileJanggiCanvas");
-            if (canvasObj == null) return;
+            if (uiCanvas == null) return;
+            if (GameManager.Instance != null) UpdateTurnDisplay(GameManager.Instance.CurrentTurn); // 패널 상태를 "대국 종료"로
 
-            GameObject dialog = new GameObject("GameOverDialog");
-            dialog.transform.SetParent(canvasObj.transform, false);
+            // 바깥을 누르면 창이 닫혀 끝난 판을 볼 수 있음 (새 대국은 메뉴에서도 가능)
+            GameObject overlay = CreateOverlay("GameOverDialog");
+            RectTransform card = CreateCard(overlay.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(860f, 600f));
 
-            RectTransform rect = dialog.AddComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(640, 380);
+            Text title = CreatePanelText(card, "Title", new Vector2(0f, 200f), new Vector2(780f, 100f), 72, TextAnchor.MiddleCenter, isPlayerWin ? AccentGold : HanColor);
+            title.fontStyle = FontStyle.Bold;
+            title.text = isPlayerWin ? "승리!" : "패배";
 
-            // Material Design 3 Elevated Dialog Card
-            Image img = dialog.AddComponent<Image>();
-            img.color = new Color(0.12f, 0.14f, 0.18f, 0.96f);
+            Text result = CreatePanelText(card, "Result", new Vector2(0f, 120f), new Vector2(780f, 50f), 28, TextAnchor.MiddleCenter, TextSubColor);
+            result.text = resultMsg;
 
-            GameObject textObj = new GameObject("ResultText");
-            textObj.transform.SetParent(dialog.transform, false);
-            RectTransform txtRect = textObj.AddComponent<RectTransform>();
-            txtRect.anchoredPosition = new Vector2(0, 45);
-            txtRect.sizeDelta = new Vector2(580, 160);
-
-            Text txt = textObj.AddComponent<Text>();
-            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            txt.fontSize = 34;
+            // 승패 연출이 이 문구를 바꿔 가며 놀리거나 분해함
+            Text txt = CreatePanelText(card, "ResultText", new Vector2(0f, 10f), new Vector2(780f, 150f), 34, TextAnchor.MiddleCenter, Color.white);
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
             txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.color = new Color(1.0f, 0.85f, 0.35f);
+
+            CreateDialogButton(card, new Vector2(-190f, -200f), "판 보기", new Color(0.26f, 0.28f, 0.34f), CloseOverlay);
+            CreateDialogButton(card, new Vector2(190f, -200f), "새 대국", new Color(0.25f, 0.50f, 0.90f), () =>
+                UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name));
 
             if (isPlayerWin)
             {
                 RecordWin();
-                txt.text = "🏆 승리를 축하합니다! 🏆";
+                txt.text = "축하합니다!";
                 if (JanggiSoundManager.Instance != null) JanggiSoundManager.Instance.PlayPlayerWinVoice();
                 StartCoroutine(PlayerWinSequence(txt));
             }
             else
             {
                 RecordLoss();
-                txt.text = $"😜 {resultMsg} 😜\n\n장기두는 사람 어디갔나~?";
+                txt.text = "장기두는 사람 어디갔나~?";
                 if (JanggiSoundManager.Instance != null) JanggiSoundManager.Instance.PlayPlayerLoseTauntVoice();
-                StartCoroutine(PlayerLoseTauntSequence(txt, dialog));
+                StartCoroutine(PlayerLoseTauntSequence(txt, card.gameObject));
             }
-
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            CreateMaterialButton(dialog.transform, "새 대국 시작", new Vector2(0, -95), new Vector2(280, 72), font, new Color(0.25f, 0.50f, 0.90f), () => {
-                UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
-            });
         }
 
         private IEnumerator PlayerWinSequence(Text txt)
@@ -1127,8 +1088,8 @@ namespace Janggi
                     break;
 
                 case 1:
-                    // 연출 B: AI 한(漢) 궁 기물 멘탈 분쇄 폭발 + 억울한 변명 팝업
-                    if (BoardView.Instance != null) BoardView.Instance.ExplodeHanKing();
+                    // 연출 B: AI 궁 기물 멘탈 분쇄 폭발 + 억울한 변명 팝업
+                    if (BoardView.Instance != null) BoardView.Instance.ExplodeAiKing();
                     yield return new WaitForSeconds(0.8f);
                     if (txt != null) txt.text = "🤬 내가 렉만 안 걸렸어도 이기는 건데!!";
                     break;
@@ -1146,7 +1107,7 @@ namespace Janggi
                     // 연출 D: 종합 선물 세트 (궁 파편 폭발 + 장기판 뒤엎기)
                     if (BoardView.Instance != null)
                     {
-                        BoardView.Instance.ExplodeHanKing();
+                        BoardView.Instance.ExplodeAiKing();
                         yield return new WaitForSeconds(0.4f);
                         BoardView.Instance.FlipBoard();
                     }
@@ -1191,7 +1152,7 @@ namespace Janggi
 
             string[] tauntMessages = new string[]
             {
-                "😜 AI 한(漢)의 승리! 😜\n\n장기두는 사람 어디갔나~?",
+                "😜 AI의 승리! 😜\n장기두는 사람 어디갔나~?",
                 "🤣 낄낄낄~ 수가 너무 훤히 보이는구먼!",
                 "💡 훈수라도 좀 받아서 두고 오시게~ ㅋㅋㅋ",
                 "⚡ 한 판 더 해서 덤벼보시게! 낄낄낄!",

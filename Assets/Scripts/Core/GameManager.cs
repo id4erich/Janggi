@@ -428,14 +428,14 @@ namespace Janggi
             PersistGame();
             if (replaying) return;
 
-            string who = (winner == Team.Cho) ? "🔵 초" : "🔴 한";
-            if (isPlayerVsAI) who += (winner == aiTeam) ? "(AI)" : "(Player)";
+            string who = (winner == Team.Cho) ? "초(楚)" : "한(漢)";
+            if (isPlayerVsAI) who += (winner == aiTeam) ? "·AI" : "·나";
             // 사람끼리 대국은 기존처럼 초 기준으로 전적 기록
             bool isPlayerWin = isPlayerVsAI ? winner != aiTeam : winner == Team.Cho;
 
             if (MobileJanggiUIManager.Instance != null)
             {
-                MobileJanggiUIManager.Instance.ShowGameOverDialog($"{who} 승리! ({reason})", isPlayerWin);
+                MobileJanggiUIManager.Instance.ShowGameOverDialog($"{who} 승리 · {reason}", isPlayerWin);
             }
         }
 

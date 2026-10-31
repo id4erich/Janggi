@@ -128,15 +128,16 @@ namespace Janggi
             yield return new WaitForSeconds(0.1f);
         }
 
-        public void ExplodeHanKing()
+        public void ExplodeAiKing()
         {
-            // 한(漢) 궁 찾아서 분쇄 폭발 연출
+            Team aiTeam = GameManager.Instance != null ? GameManager.Instance.aiTeam : Team.Han;
+            // AI 쪽 궁을 찾아 분쇄 폭발 연출 (내가 한으로 두면 초의 궁)
             for (int x = 0; x < 9; x++)
             {
                 for (int y = 0; y < 10; y++)
                 {
                     PieceData p = GameManager.Instance.Board[x, y];
-                    if (p != null && p.Team == Team.Han && p.Type == PieceType.King)
+                    if (p != null && p.Team == aiTeam && p.Type == PieceType.King)
                     {
                         if (pieceRenderers.TryGetValue(p.Position, out GameObject kingObj))
                         {
