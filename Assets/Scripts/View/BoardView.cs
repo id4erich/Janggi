@@ -394,14 +394,28 @@ namespace Janggi
             }
         }
 
+        private bool touchPressHandled;
+
         private void Update()
         {
             Vector2? inputPos = null;
+#if ENABLE_INPUT_SYSTEM
+            // 직전 프레임에 손을 뗐으면 다음 터치를 위해 초기화
+            var primary = UnityEngine.InputSystem.Touchscreen.current?.primaryTouch;
+            if (primary != null && !primary.press.isPressed && !primary.press.wasReleasedThisFrame) touchPressHandled = false;
+#endif
 
 #if ENABLE_INPUT_SYSTEM
-            if (UnityEngine.InputSystem.Touchscreen.current != null && UnityEngine.InputSystem.Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+            var touch = UnityEngine.InputSystem.Touchscreen.current?.primaryTouch;
+            if (touch != null && touch.press.wasPressedThisFrame)
             {
-                inputPos = UnityEngine.InputSystem.Touchscreen.current.primaryTouch.position.ReadValue();
+                inputPos = touch.position.ReadValue();
+                touchPressHandled = true;
+            }
+            else if (touch != null && touch.press.wasReleasedThisFrame && !touchPressHandled)
+            {
+                // 한 프레임 안에 눌렀다 뗀 짧은 탭은 wasPressedThisFrame에 안 잡히므로 뗄 때 처리
+                inputPos = touch.position.ReadValue();
             }
             else if (UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
             {

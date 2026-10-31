@@ -259,17 +259,14 @@ namespace Janggi
             // TTS가 '~' 문자를 '물결표'라고 읽지 않도록 필터링 처리
             string cleanText = textToSay.Replace("~", "").Replace("^", "").Replace("  ", " ");
 #if UNITY_ANDROID && !UNITY_EDITOR
-            if (!ttsReady) return; // 초기화 전(앱 시작 직후)이면 대사 생략
-            try
+            if (!ttsReady)
             {
-                tts.Call<int>("setPitch", pitchMultiplier);
-                using (var bundle = new AndroidJavaObject("android.os.Bundle"))
-                    tts.Call<int>("speak", cleanText, 0 /* QUEUE_FLUSH */, bundle, "janggi");
+                // 앱 시작 직후처럼 초기화 전이면 마지막 대사 하나만 기억했다가 준비되면 읽음
+                pendingText = cleanText;
+                pendingPitch = pitchMultiplier;
+                return;
             }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning($"TextToSpeech 재생 실패: {e.Message}");
-            }
+            SpeakNow(cleanText, pitchMultiplier);
 #else
             Debug.Log($"[TTS] {cleanText}");
 #endif
@@ -278,6 +275,22 @@ namespace Janggi
 #if UNITY_ANDROID && !UNITY_EDITOR
         private AndroidJavaObject tts;
         private bool ttsReady;
+        private string pendingText;
+        private float pendingPitch = 1f;
+
+        private void SpeakNow(string text, float pitch)
+        {
+            try
+            {
+                tts.Call<int>("setPitch", pitch);
+                using (var bundle = new AndroidJavaObject("android.os.Bundle"))
+                    tts.Call<int>("speak", text, 0 /* QUEUE_FLUSH */, bundle, "janggi");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"TextToSpeech 재생 실패: {e.Message}");
+            }
+        }
         private volatile int ttsInitStatus = int.MinValue; // Android UI 스레드의 onInit 결과, Update에서 처리
 
         private class TtsInitListener : AndroidJavaProxy
@@ -307,6 +320,11 @@ namespace Janggi
             // LANG_MISSING_DATA(-1)·LANG_NOT_SUPPORTED(-2)면 엉뚱한 언어로 읽지 않도록 대사를 끔
             if (lang < 0) { Debug.LogWarning($"TextToSpeech 한국어 미지원: {lang}"); return; }
             ttsReady = true;
+            if (pendingText != null)
+            {
+                SpeakNow(pendingText, pendingPitch);
+                pendingText = null;
+            }
         }
 
         private void OnDestroy()
