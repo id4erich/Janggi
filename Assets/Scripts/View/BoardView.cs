@@ -185,6 +185,19 @@ namespace Janggi
                 body.transform.localScale = new Vector3(9.52f, 0.4f, 10.71f);
                 body.GetComponent<MeshRenderer>().sharedMaterial = Resources.Load<Material>("BoardArt/BoardSide");
             }
+
+            // 판을 올려 둔 어두운 탁자 (비스듬한 시점에서 판 너머로 보이는 바닥)
+            if (GameObject.Find("Table") == null)
+            {
+                GameObject table = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                table.name = "Table";
+                Destroy(table.GetComponent<Collider>());
+                table.transform.position = new Vector3(0f, -0.402f, 0f);
+                table.transform.localScale = new Vector3(8f, 1f, 8f);
+                Material tableMat = new Material(Resources.Load<Material>("BoardArt/BoardSide"));
+                tableMat.color = new Color(0.42f, 0.30f, 0.24f);
+                table.GetComponent<MeshRenderer>().sharedMaterial = tableMat;
+            }
         }
 
         public Vector3 BoardToWorldPos(BoardPos pos)
@@ -494,6 +507,15 @@ namespace Janggi
             {
                 movingObj.transform.position = endPos;
             }
+
+            // 착수 "탁": 내려놓는 순간 살짝 튕겼다 자리 잡음
+            const float settle = 0.12f;
+            for (float e = 0f; e < settle && movingObj != null; e += Time.deltaTime)
+            {
+                movingObj.transform.position = endPos + Vector3.up * (Mathf.Sin(e / settle * Mathf.PI) * 0.06f);
+                yield return null;
+            }
+            if (movingObj != null) movingObj.transform.position = endPos;
 
             // 착수음 / 잡기 sound effect 재생
             if (JanggiSoundManager.Instance != null)

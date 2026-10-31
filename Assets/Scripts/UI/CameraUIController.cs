@@ -12,7 +12,11 @@ namespace Janggi
         public float zoomSpeed = 2.0f;
         public float rotateSpeed = 45.0f;
 
-        private float currentPitch = 90.0f;
+        [Tooltip("기본 시점 각도. 90이면 바로 위, 작을수록 비스듬히 내려다봐 기물 두께가 보임")]
+        public float defaultPitch = 60.0f;
+        public static readonly Color BackgroundColor = new Color(0.13f, 0.10f, 0.08f); // 탁자 너머 어두운 방
+
+        private float currentPitch = 60.0f;
         private float currentYaw = 0.0f;
         private Vector3 targetLookAt = new Vector3(0f, 0f, 0f);
         private float distance = 11.2f;
@@ -20,6 +24,9 @@ namespace Janggi
         private void Start()
         {
             if (mainCamera == null) mainCamera = Camera.main;
+            mainCamera.clearFlags = CameraClearFlags.SolidColor;
+            mainCamera.backgroundColor = BackgroundColor;
+            currentPitch = defaultPitch;
             UpdateCameraTransform();
         }
 
@@ -73,6 +80,8 @@ namespace Janggi
             {
                 // 장기판 좌우 끝(x=-4.8~4.8)을 절묘하게 꽉 채우는 타겟 거리
                 targetDistance = 5.2f / (Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect);
+                // 비스듬히 볼 때는 가까운 쪽 판 가장자리가 더 넓게 보이므로 그만큼 물러남
+                targetDistance *= 1f + Mathf.Cos(currentPitch * Mathf.Deg2Rad) * 0.25f;
             }
 
             Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0f);
@@ -89,10 +98,12 @@ namespace Janggi
         public void ZoomIn() { distance = Mathf.Clamp(distance - 2f, 6f, 25f); UpdateCameraTransform(); }
         public void ZoomOut() { distance = Mathf.Clamp(distance + 2f, 6f, 25f); UpdateCameraTransform(); }
 
+        // 시점 리셋: 이미 기본 시점이면 바로 위 시점으로, 아니면 기본(비스듬한) 시점으로 전환
         public void ResetView()
         {
+            bool atDefault = targetLookAt == Vector3.zero && Mathf.Approximately(currentYaw, 0f) && Mathf.Approximately(currentPitch, defaultPitch);
             targetLookAt = new Vector3(0f, 0f, 0f);
-            currentPitch = 90.0f;
+            currentPitch = atDefault ? 90.0f : defaultPitch;
             currentYaw = 0.0f;
             distance = 18.5f;
             UpdateCameraTransform();
