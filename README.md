@@ -2,6 +2,8 @@
 
 **English** | [한국어](README.ko.md)
 
+[![Rule check](https://github.com/id4erich/Janggi/actions/workflows/rule-check.yml/badge.svg)](https://github.com/id4erich/Janggi/actions/workflows/rule-check.yml)
+
 A Korean chess (janggi) app built with Unity. It targets Android (arm64) and uses the Fairy-Stockfish engine as the AI opponent.
 
 ## Features

@@ -2,6 +2,8 @@
 
 [English](README.md) | **한국어**
 
+[![Rule check](https://github.com/id4erich/Janggi/actions/workflows/rule-check.yml/badge.svg)](https://github.com/id4erich/Janggi/actions/workflows/rule-check.yml)
+
 Unity로 만든 한국 장기 앱입니다. Android(arm64)용으로 빌드하며, AI 상대로 Fairy-Stockfish 엔진을 씁니다.
 
 ## 기능
