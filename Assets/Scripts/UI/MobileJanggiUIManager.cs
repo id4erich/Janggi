@@ -476,6 +476,20 @@ namespace Janggi
             startTxt.fontStyle = FontStyle.Bold;
             startTxt.alignment = TextAnchor.MiddleCenter;
             startTxt.color = Color.white;
+
+            // 오픈소스 고지 (APK에 GPL v3 엔진이 포함되므로 라이선스와 소스 위치를 앱 안에 표시)
+            GameObject noticeObj = new GameObject("OpenSourceNotice");
+            noticeObj.transform.SetParent(card.transform, false);
+            RectTransform noticeRect = noticeObj.AddComponent<RectTransform>();
+            noticeRect.anchoredPosition = new Vector2(0, -535);
+            noticeRect.sizeDelta = new Vector2(800, 60);
+
+            Text noticeTxt = noticeObj.AddComponent<Text>();
+            noticeTxt.font = font;
+            noticeTxt.text = "AI 엔진: Fairy-Stockfish (GNU GPL v3) · github.com/fairy-stockfish/Fairy-Stockfish\n기물 글씨: Yuji Boku·Yuji Syuku (SIL Open Font License 1.1)";
+            noticeTxt.fontSize = 17;
+            noticeTxt.alignment = TextAnchor.MiddleCenter;
+            noticeTxt.color = new Color(0.65f, 0.70f, 0.78f);
         }
 
         private void CreateTeamPlacementSection(Transform parent, string title, float startY, Team team, Font font, Sprite pillSprite)
