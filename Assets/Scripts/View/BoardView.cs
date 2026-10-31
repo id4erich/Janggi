@@ -170,13 +170,21 @@ namespace Janggi
             boardGrid.transform.position = new Vector3(0f, 0f, 0f);
             boardGrid.transform.localScale = new Vector3(0.952f, 1f, 1.071f);
 
+            // 나뭇결·먹선 텍스처는 Tools/PieceArt/bake_board_texture.py로 미리 구워 둔 것
             MeshRenderer ren = boardGrid.GetComponent<MeshRenderer>();
-            Shader litShader = Shader.Find("Universal Render Pipeline/Lit");
-            if (litShader == null) litShader = Shader.Find("Standard");
+            ren.sharedMaterial = Resources.Load<Material>("BoardArt/Board");
+            ren.receiveShadows = true;
 
-            Material boardMat = new Material(litShader);
-            boardMat.mainTexture = BoardTextureGenerator.CreateJanggiBoardTexture();
-            ren.material = boardMat;
+            // 판 두께: 윗면(Plane) 바로 아래 나무 몸체. 클릭 판정은 윗면 Plane 콜라이더만 사용
+            if (GameObject.Find("BoardBody") == null)
+            {
+                GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                body.name = "BoardBody";
+                Destroy(body.GetComponent<Collider>());
+                body.transform.position = new Vector3(0f, -0.2f - 0.002f, 0f);
+                body.transform.localScale = new Vector3(9.52f, 0.4f, 10.71f);
+                body.GetComponent<MeshRenderer>().sharedMaterial = Resources.Load<Material>("BoardArt/BoardSide");
+            }
         }
 
         public Vector3 BoardToWorldPos(BoardPos pos)
