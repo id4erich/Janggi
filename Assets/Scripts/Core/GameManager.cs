@@ -22,11 +22,13 @@ namespace Janggi
         public const string KeyAiLevel = "Janggi_AI_Level";
 
         // 단별 (Fairy-Stockfish Skill Level, 한 수 생각 시간 ms, 엔진이 없을 때 내장 AI 수읽기 깊이)
-        // shortcut: 추정값, 단끼리 자동 대국이나 플레이 테스트로 간격을 조정할 것
+        // Tools/FairyStockfish/calibrate_levels.py 자동 대국으로 인접 단 차이가 약 200 Elo(윗단 승률 약 75%)가 되도록 맞춤.
+        // 3~9단은 실측(인접 단 +120~+280 Elo), 1~3단은 실력 단계 -20~-6 구간 편차가 커서 측정값 사이를 보간한 값.
+        // 내장 AI 깊이는 보정하지 않은 추정값
         private static readonly (int Skill, int TimeMs, int Depth)[] AiLevels =
         {
-            (-20, 300, 1), (-15, 400, 2), (-10, 500, 2), (-5, 700, 3), (0, 1000, 3),
-            (5, 1300, 4), (10, 1600, 5), (15, 2000, 6), (20, 3000, 6)
+            (-20, 1000, 1), (-12, 1000, 2), (-7, 1000, 2), (-4, 1000, 3), (-1, 1000, 3),
+            (0, 1000, 4), (1, 1000, 5), (3, 1000, 6), (5, 1000, 6)
         };
 
         public static (int Skill, int TimeMs, int Depth) GetAiLevelSettings(int level)

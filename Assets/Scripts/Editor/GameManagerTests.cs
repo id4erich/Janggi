@@ -47,7 +47,7 @@ namespace Janggi.Tests
                 var prev = GameManager.GetAiLevelSettings(lv - 1);
                 var cur = GameManager.GetAiLevelSettings(lv);
                 Assert.Greater(cur.Skill, prev.Skill);
-                Assert.Greater(cur.TimeMs, prev.TimeMs);
+                Assert.GreaterOrEqual(cur.TimeMs, prev.TimeMs);
                 Assert.GreaterOrEqual(cur.Depth, prev.Depth);
             }
             Assert.AreEqual(GameManager.GetAiLevelSettings(1), GameManager.GetAiLevelSettings(0));
