@@ -113,60 +113,61 @@ namespace Janggi
 
         #region 1. 착수 및 기물 이동 효과음 (Move & Capture SFX)
 
+        // 나무 말이 나무판에 닿는 소리: 판·말의 공명(서로 정수배가 아닌 주파수가 빠르게 감쇠)에
+        // 닿는 순간의 짧은 딸깍과 낮은 울림을 더함. 둘 때마다 높낮이를 조금 바꿔 같은 소리로 들리지 않게 함
+        private static readonly float[] WoodModeHz = { 640f, 1170f, 1930f, 2870f };
+        private static readonly float[] WoodModeDecay = { 42f, 60f, 85f, 120f };
+        private static readonly float[] WoodModeAmp = { 1.0f, 0.55f, 0.32f, 0.18f };
+
+        private static void AddWoodClack(float[] data, int sampleRate, int start, float pitch, float thump, float gain)
+        {
+            float[] phase = new float[WoodModeHz.Length];
+            for (int m = 0; m < phase.Length; m++) phase[m] = Random.value * 2f * Mathf.PI;
+            for (int i = start; i < data.Length; i++)
+            {
+                float t = (float)(i - start) / sampleRate;
+                float v = 0f;
+                for (int m = 0; m < WoodModeHz.Length; m++)
+                    v += Mathf.Sin(2f * Mathf.PI * WoodModeHz[m] * pitch * t + phase[m]) * WoodModeAmp[m] * Mathf.Exp(-t * WoodModeDecay[m]);
+                v += (Random.value * 2f - 1f) * 0.7f * Mathf.Exp(-t * 900f);                   // 닿는 순간 딸깍
+                v += Mathf.Sin(2f * Mathf.PI * 150f * pitch * t) * thump * Mathf.Exp(-t * 32f); // 판의 낮은 울림
+                data[i] += v * gain;
+            }
+        }
+
+        private void PlayClip(string name, float[] data, int sampleRate, float volume)
+        {
+            float peak = 0f;
+            foreach (float v in data) peak = Mathf.Max(peak, Mathf.Abs(v));
+            if (peak > 0f) for (int i = 0; i < data.Length; i++) data[i] *= 0.9f / peak;
+            AudioClip clip = AudioClip.Create(name, data.Length, 1, sampleRate, false);
+            clip.SetData(data, 0);
+            sfxSource.PlayOneShot(clip, volume);
+        }
+
         /// <summary>
-        /// 장기말 이동 및 탁! 내려놓는 목재 착수음
+        /// 장기말을 판에 "탁" 내려놓는 소리 (말이 판에 닿는 순간 호출)
         /// </summary>
         public void PlayMoveSound()
         {
-            int sampleRate = 44100;
-            float duration = 0.12f;
-            int samples = (int)(sampleRate * duration);
-            float[] data = new float[samples];
-
-            // 묵직한 나무 탁! 소리 (낮은 주파수 임팩트 + 정갈한 감쇄)
-            for (int i = 0; i < samples; i++)
-            {
-                float t = (float)i / sampleRate;
-                float env = Mathf.Exp(-t * 35f); // 빠른 어택과 디케이
-                float freq1 = Mathf.Sin(2f * Mathf.PI * 160f * t);
-                float freq2 = Mathf.Sin(2f * Mathf.PI * 340f * t);
-                float noise = (Random.value * 2f - 1f) * 0.15f * Mathf.Exp(-t * 80f);
-
-                data[i] = (freq1 * 0.6f + freq2 * 0.3f + noise) * env;
-            }
-
-            AudioClip clip = AudioClip.Create("MoveSFX", samples, 1, sampleRate, false);
-            clip.SetData(data, 0);
-            sfxSource.PlayOneShot(clip, 0.9f);
+            const int sampleRate = 44100;
+            float[] data = new float[(int)(sampleRate * 0.16f)];
+            AddWoodClack(data, sampleRate, 0, Random.Range(0.94f, 1.06f), 0.45f, 1f);
+            PlayClip("MoveSFX", data, sampleRate, 0.9f);
             Vibrate(20);
         }
 
         /// <summary>
-        /// 상대 말을 잡아챌 때의 강렬한 팍! 착수음
+        /// 상대 말을 잡을 때: 더 낮고 묵직한 "딱"에 이어 밀려난 말이 부딪는 소리
         /// </summary>
         public void PlayCaptureSound()
         {
             Vibrate(45);
-            int sampleRate = 44100;
-            float duration = 0.18f;
-            int samples = (int)(sampleRate * duration);
-            float[] data = new float[samples];
-
-            // 강렬한 타격감 (스맥/임팩트 타격음 + 잔향)
-            for (int i = 0; i < samples; i++)
-            {
-                float t = (float)i / sampleRate;
-                float env = Mathf.Exp(-t * 28f);
-                float body = Mathf.Sin(2f * Mathf.PI * 120f * t) * 0.7f;
-                float transient = Mathf.Sin(2f * Mathf.PI * 480f * t) * 0.4f;
-                float snap = (Random.value * 2f - 1f) * 0.4f * Mathf.Exp(-t * 120f);
-
-                data[i] = (body + transient + snap) * env;
-            }
-
-            AudioClip clip = AudioClip.Create("CaptureSFX", samples, 1, sampleRate, false);
-            clip.SetData(data, 0);
-            sfxSource.PlayOneShot(clip, 1.0f);
+            const int sampleRate = 44100;
+            float[] data = new float[(int)(sampleRate * 0.22f)];
+            AddWoodClack(data, sampleRate, 0, Random.Range(0.84f, 0.92f), 0.9f, 1f);
+            AddWoodClack(data, sampleRate, (int)(sampleRate * 0.028f), Random.Range(1.05f, 1.15f), 0.2f, 0.45f);
+            PlayClip("CaptureSFX", data, sampleRate, 1.0f);
         }
 
         #endregion

@@ -525,13 +525,26 @@ namespace Janggi
             // 고른 말을 살짝 들어 올려 집어 든 느낌을 줌
             if (pieceRenderers.TryGetValue(pos, out liftedPiece))
             {
-                liftedPiece.transform.position = BoardToWorldPos(pos) + Vector3.up * 0.12f;
                 liftedPos = pos;
+                liftRoutine = StartCoroutine(LiftPiece(liftedPiece, BoardToWorldPos(pos)));
             }
         }
 
         private GameObject liftedPiece;
         private BoardPos liftedPos;
+        private Coroutine liftRoutine;
+
+        private IEnumerator LiftPiece(GameObject piece, Vector3 rest)
+        {
+            const float duration = 0.08f;
+            for (float e = 0f; e < duration && piece != null; e += Time.deltaTime)
+            {
+                piece.transform.position = rest + Vector3.up * (0.12f * Mathf.SmoothStep(0f, 1f, e / duration));
+                yield return null;
+            }
+            if (piece != null) piece.transform.position = rest + Vector3.up * 0.12f;
+            liftRoutine = null;
+        }
 
         private void ClearSelectionHighlight()
         {
@@ -539,6 +552,11 @@ namespace Janggi
             {
                 Destroy(selectionHighlight);
                 selectionHighlight = null;
+            }
+            if (liftRoutine != null)
+            {
+                StopCoroutine(liftRoutine);
+                liftRoutine = null;
             }
             if (liftedPiece != null)
             {
@@ -615,56 +633,49 @@ namespace Janggi
         private IEnumerator AnimatePieceMovement(GameObject movingObj, Vector3 startPos, Vector3 endPos, BoardPos from, BoardPos to, GameObject capturedObj)
         {
             int generation = boardGeneration;
-            float duration = 0.45f; // 이동 애니메이션 소요 시간
-            float elapsedTime = 0f;
-            float arcHeight = 0.8f; // 공중으로 둥실 부드럽게 들려서 포물선 이동하는 3D 곡선 높이
+            // 거리에 따라 시간·높이를 달리 함: 한 칸은 짧게 들어 "탁", 판 끝까지는 조금 더 길고 높게
+            float span = Mathf.InverseLerp(1f, 9f, Vector3.Distance(startPos, endPos) / cellSpacing);
+            float duration = Mathf.Lerp(0.18f, 0.34f, span);
+            float arcHeight = Mathf.Lerp(0.22f, 0.45f, span);
 
-            while (elapsedTime < duration)
+            for (float e = 0f; e < duration && movingObj != null; e += Time.deltaTime)
             {
-                elapsedTime += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsedTime / duration);
-
-                // SmoothStep(이지인 아웃) 보정
-                float smoothT = Mathf.SmoothStep(0f, 1f, t);
-
-                // XZ 선형 이동 + Y 수직 포물선 곡선 (Sin 곡선 파동)
-                Vector3 currentPos = Vector3.Lerp(startPos, endPos, smoothT);
-                currentPos.y += Mathf.Sin(smoothT * Mathf.PI) * arcHeight;
-
-                if (movingObj != null)
-                {
-                    movingObj.transform.position = currentPos;
-                }
-
-                yield return null;
-            }
-
-            if (movingObj != null)
-            {
-                movingObj.transform.position = endPos;
-            }
-
-            // 착수 "탁": 내려놓는 순간 살짝 튕겼다 자리 잡음
-            const float settle = 0.12f;
-            for (float e = 0f; e < settle && movingObj != null; e += Time.deltaTime)
-            {
-                movingObj.transform.position = endPos + Vector3.up * (Mathf.Sin(e / settle * Mathf.PI) * 0.06f);
+                float t = e / duration;
+                Vector3 p = Vector3.Lerp(startPos, endPos, Mathf.SmoothStep(0f, 1f, t));
+                p.y += 4f * arcHeight * t * (1f - t); // 포물선: 내려올수록 빨라져 내려놓는 힘이 느껴짐
+                movingObj.transform.position = p;
                 yield return null;
             }
             if (movingObj != null) movingObj.transform.position = endPos;
 
-            // 착수음 / 잡기 sound effect 재생
+            // 닿는 순간 소리·진동을 함께 냄
             if (JanggiSoundManager.Instance != null)
             {
                 if (capturedObj != null) JanggiSoundManager.Instance.PlayCaptureSound();
                 else JanggiSoundManager.Instance.PlayMoveSound();
             }
 
-            // 도착 시 상대 잡힌 말 파괴 처리 (착수 임팩트 효과)
+            // 잡힌 말은 부딪힌 방향으로 밀려나며 작아져 사라짐
             if (capturedObj != null)
             {
-                Destroy(capturedObj);
-                RefreshCapturedTray();
+                Vector3 dir = endPos - startPos;
+                dir.y = 0f;
+                StartCoroutine(KnockAwayCaptured(capturedObj, dir.sqrMagnitude > 0f ? dir.normalized : Vector3.forward));
+            }
+
+            // 내려놓을 때 살짝 눌렸다 펴짐 (튀어 오르지 않음)
+            if (movingObj != null)
+            {
+                Vector3 baseScale = movingObj.transform.localScale;
+                Vector3 squashed = new Vector3(baseScale.x * 1.05f, baseScale.y * 0.86f, baseScale.z * 1.05f);
+                const float squash = 0.05f, recover = 0.09f;
+                for (float e = 0f; e < squash + recover && movingObj != null; e += Time.deltaTime)
+                {
+                    float k = e < squash ? e / squash : 1f - (e - squash) / recover;
+                    movingObj.transform.localScale = Vector3.Lerp(baseScale, squashed, k);
+                    yield return null;
+                }
+                if (movingObj != null) movingObj.transform.localScale = baseScale;
             }
 
             // 애니메이션 도중 무르기·새 대국으로 판이 다시 그려졌으면 옛 좌표에 표시를 남기지 않음
@@ -673,6 +684,23 @@ namespace Janggi
             // 최근 착수 이동 지점 표시링 생성 (시작 위치: 파란원, 끝 위치: 노란원)
             CreateLastMoveMarkers(from, to);
             UpdateCheckMarker();
+        }
+
+        private IEnumerator KnockAwayCaptured(GameObject obj, Vector3 dir)
+        {
+            Vector3 start = obj.transform.position, scale = obj.transform.localScale;
+            const float duration = 0.22f;
+            for (float e = 0f; e < duration && obj != null; e += Time.deltaTime)
+            {
+                float t = e / duration;
+                Vector3 p = start + dir * (0.55f * cellSpacing * (1f - (1f - t) * (1f - t)));
+                p.y += 0.12f * Mathf.Sin(t * Mathf.PI);
+                obj.transform.position = p;
+                obj.transform.localScale = scale * (1f - 0.7f * t);
+                yield return null;
+            }
+            if (obj != null) Destroy(obj);
+            RefreshCapturedTray();
         }
 
         private void CreateLastMoveMarkers(BoardPos from, BoardPos to)
