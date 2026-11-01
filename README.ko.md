@@ -91,7 +91,7 @@ python Tools/PieceArt/bake_board_texture.py
 
 ## Android(arm64)용 엔진 다시 빌드하기
 
-[Fairy-Stockfish](https://github.com/fairy-stockfish/Fairy-Stockfish) `fairy_sf_14` 소스의 `src` 폴더에서, Unity에 들어 있는 NDK(r27c) clang으로 빌드합니다.
+[Fairy-Stockfish](https://github.com/fairy-stockfish/Fairy-Stockfish) 커밋 [`9f778da`](https://github.com/fairy-stockfish/Fairy-Stockfish/tree/9f778da667f6e07dae1e85d3e2ea204fc6dee94d)(장기 신경망이 요구하는 버전) 소스의 `src` 폴더에서, Unity에 들어 있는 NDK(r27c) clang으로 빌드합니다.
 
 ```bash
 "$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/clang++.exe" --target=aarch64-linux-android25 \
@@ -106,6 +106,19 @@ python Tools/PieceArt/bake_board_texture.py
 
 빌드한 뒤 `llvm-strip`으로 디버그 정보를 지우고 `Assets/Plugins/Android/libs/arm64-v8a/`에 넣습니다. Android는 앱 데이터 폴더의 파일을 실행하지 못하게 막기 때문에, 엔진을 `.so` 이름으로 넣어 설치할 때 네이티브 라이브러리 폴더에 풀리게 합니다. 앱은 실행 중에 이 폴더에서 엔진을 찾아 `Runtime.exec`로 실행합니다.
 
+PC용 엔진(`Tools/FairyStockfish/fairy-stockfish-largeboard_x86-64-modern.exe`)은 같은 소스를 같은 NDK clang으로 `x86_64-pc-windows-msvc` 대상으로 빌드합니다(MSVC는 128비트 정수가 없어 못 씀). Visual Studio 2022의 `vcvars64` 명령 창에서, NDK의 `ld.lld.exe`를 `lld-link.exe`로 복사해(NDK `bin`의 DLL과 함께) `PATH`에 두고 실행합니다.
+
+```bat
+clang++ --target=x86_64-pc-windows-msvc -fuse-ld=lld -std=c++17 -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -O3 -DNDEBUG ^
+  -DIS_64BIT -DUSE_POPCNT -DUSE_SSE41 -DUSE_SSSE3 -DUSE_SSE2 -msse4.1 -mssse3 -mpopcnt ^
+  -DLARGEBOARDS -DPRECOMPUTED_MAGICS -DNNUE_EMBEDDING_OFF -w -fms-extensions -Xclang -fcxx-exceptions ^
+  (같은 소스 파일들) -o fairy-stockfish-largeboard_x86-64-modern.exe
+```
+
+### 신경망 평가(NNUE)
+
+엔진은 [Fairy-Stockfish-NNUE](https://github.com/fairy-stockfish/Fairy-Stockfish-NNUE)(GPL v3)의 장기 신경망 `janggi-9991472750de.nnue`로 둡니다. `janggicasual`·`janggitraditional`에도 쓰이지만, 파일 이름이 `janggi`로 시작해야 합니다. PC는 `Tools/FairyStockfish/janggi-9991472750de.nnue`를 쓰고, 안드로이드는 `Assets/Plugins/Android/libs/arm64-v8a/libjanggi_nnue.so`로 넣어 두었다가 처음 실행할 때 앱 데이터 폴더에 원래 이름으로 한 번 복사합니다. 신경망을 읽지 못하면 엔진의 기본 평가로 둡니다.
+
 ## 개인정보
 
 앱은 개인정보를 수집하지 않고 인터넷으로 아무것도 보내지 않습니다. 자세한 내용은 [`PRIVACY.md`](PRIVACY.md)를 보세요.
@@ -119,6 +132,7 @@ python Tools/PieceArt/bake_board_texture.py
 | 구성 요소 | 라이선스 | 위치 |
 |---|---|---|
 | Fairy-Stockfish | GNU GPL v3 | `Tools/FairyStockfish/Copying.txt`, 소스: https://github.com/fairy-stockfish/Fairy-Stockfish |
+| Fairy-Stockfish 장기 신경망 (`janggi-9991472750de.nnue`) | GNU GPL v3 | 소스: https://github.com/fairy-stockfish/Fairy-Stockfish-NNUE |
 | Yuji Boku, Yuji Syuku 글꼴 | SIL Open Font License 1.1 | `Tools/Fonts/OFL-*.txt` |
 
 Fairy-Stockfish는 앱과 별도 프로세스로 실행되며 UCI로 통신합니다. APK에 엔진이 들어 있으므로, 앱을 배포할 때 GPL v3 고지와 엔진 소스 위치를 함께 알려야 합니다. 앱 안에서는 차림 설정 창 아래쪽에 표시됩니다.

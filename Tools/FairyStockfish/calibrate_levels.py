@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ENGINE = ROOT / "Tools/FairyStockfish/fairy-stockfish-largeboard_x86-64-modern.exe"
+NNUE = ROOT / "Tools/FairyStockfish/janggi-9991472750de.nnue"  # 앱과 같은 신경망 평가
 GAME_MANAGER = ROOT / "Assets/Scripts/Core/GameManager.cs"
 
 # 앱의 차림 4종 (x=1,2,6,7 순서의 마/상) → FEN 1줄
@@ -45,6 +46,7 @@ class Engine:
         self.send("uci"); self.wait("uciok")
         self.send("setoption name UCI_Variant value janggicasual")
         self.send(f"setoption name Skill Level value {skill}")
+        self.send(f"setoption name EvalFile value {NNUE.as_posix()}")
         self.send("isready"); self.wait("readyok")
 
     def send(self, cmd):

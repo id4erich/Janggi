@@ -22,13 +22,14 @@ namespace Janggi
         public const string KeyAiLevel = "Janggi_AI_Level";
 
         // 단별 (Fairy-Stockfish Skill Level, 한 수 생각 시간 ms, 엔진이 없을 때 내장 AI 수읽기 깊이)
-        // Tools/FairyStockfish/calibrate_levels.py 자동 대국으로 인접 단 차이가 약 200 Elo(윗단 승률 약 75%)가 되도록 맞춤.
-        // 3~9단은 실측(인접 단 +120~+280 Elo), 1~3단은 실력 단계 -20~-6 구간 편차가 커서 측정값 사이를 보간한 값.
-        // 내장 AI 깊이는 보정하지 않은 추정값
+        // 장기 신경망(NNUE)을 쓰는 엔진 기준. Tools/FairyStockfish/calibrate_levels.py 자동 대국(10판씩) 측정:
+        // 실력 단계 -12~-6은 거의 같은 실력이고, -6부터 2단계마다 약 +250~+500 Elo로 가팔라짐.
+        // 그래서 1단만 바닥(-20)에 두고 2~6단은 2단계씩, 7~9단은 시간을 늘리며 최대 실력(20)까지 올림.
+        // 9단은 엔진 최대 실력. 내장 AI 깊이는 보정하지 않은 추정값
         private static readonly (int Skill, int TimeMs, int Depth)[] AiLevels =
         {
-            (-20, 1000, 1), (-12, 1000, 2), (-7, 1000, 2), (-4, 1000, 3), (-1, 1000, 3),
-            (0, 1000, 4), (1, 1000, 5), (3, 1000, 6), (5, 1000, 6)
+            (-20, 1000, 1), (-6, 1000, 2), (-4, 1000, 2), (-2, 1000, 3), (0, 1000, 3),
+            (2, 1500, 4), (5, 1500, 5), (10, 2000, 6), (20, 3000, 6)
         };
 
         public static (int Skill, int TimeMs, int Depth) GetAiLevelSettings(int level)
@@ -577,26 +578,39 @@ namespace Janggi
             }
         }
 
-        // 실행에 실패하면 이번 실행 동안은 내장 AI로 대체
+        // 실행에 실패하면 이번 실행 동안은 내장 AI로 대체. 신경망만 실패하면 신경망 없이 엔진을 씀
         private FairyStockfishEngine GetFairyStockfish()
         {
             if (!useFairyStockfish || fsFailed) return null;
             if (fsEngine != null) return fsEngine;
+            string path = null, nnue = null;
             try
             {
 #if UNITY_ANDROID && !UNITY_EDITOR
-                string path = FairyStockfishEngine.DefaultPath(); // Plugins/Android/libs/arm64-v8a
+                path = FairyStockfishEngine.DefaultPath(); // Plugins/Android/libs/arm64-v8a
+                nnue = FairyStockfishEngine.PrepareNnue();
 #else
-                string path = System.IO.Path.Combine(Application.dataPath, "..", fairyStockfishPath);
+                path = System.IO.Path.Combine(Application.dataPath, "..", fairyStockfishPath);
+                nnue = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path), FairyStockfishEngine.NnueFileName));
+                if (!System.IO.File.Exists(nnue)) nnue = null;
 #endif
-                fsEngine = new FairyStockfishEngine(path);
             }
-            catch (Exception e)
+            catch (Exception e) { Debug.LogWarning($"신경망 준비 실패: {e.Message}"); }
+
+            // 코어 절반(최대 4)과 64MB 해시: 갤럭시 S10(8코어) 기준 4스레드
+            int threads = Mathf.Clamp(SystemInfo.processorCount / 2, 1, 4);
+            foreach (string evalFile in nnue != null ? new[] { nnue, null } : new string[] { null })
             {
-                fsFailed = true;
-                Debug.LogWarning($"Fairy-Stockfish 실행 실패, 내장 AI 사용: {e.Message}");
+                try
+                {
+                    fsEngine = new FairyStockfishEngine(path, evalFile, threads, 64);
+                    return fsEngine;
+                }
+                catch (Exception e) { Debug.LogWarning($"Fairy-Stockfish 실행 실패 (신경망 {(evalFile != null ? "사용" : "없음")}): {e.Message}"); }
             }
-            return fsEngine;
+            fsFailed = true;
+            Debug.LogWarning("Fairy-Stockfish를 쓸 수 없어 내장 AI 사용");
+            return null;
         }
 
         private void OnDestroy()
@@ -625,11 +639,26 @@ namespace Janggi
             var level = GetAiLevelSettings(aiLevel);
             string variant = EngineVariant;
             FairyStockfishEngine engine = GetFairyStockfish();
-            var task = System.Threading.Tasks.Task.Run(() => engine != null
-                ? engine.GetBestMove(snapshot, team, variant, level.Skill, level.TimeMs)
-                : JanggiAIHighLevel.GetBestMove(snapshot, team, level.Depth, level.TimeMs));
+            Exception engineError = null;
+            var task = System.Threading.Tasks.Task.Run(() =>
+            {
+                if (engine != null)
+                {
+                    try { return engine.GetBestMove(snapshot, team, variant, level.Skill, level.TimeMs); }
+                    catch (Exception e) { engineError = e; } // 예: 메모리가 부족해 기기가 엔진을 종료
+                }
+                return JanggiAIHighLevel.GetBestMove(snapshot, team, level.Depth, level.TimeMs);
+            });
             while (!task.IsCompleted) yield return null; // 이 사이 무르기·기권 시 코루틴이 중단되어 결과를 버림
             aiRoutine = null;
+            if (engineError != null)
+            {
+                // 엔진이 대국 중에 죽으면 한수 쉼 대신 내장 AI로 두고, 이번 실행 동안은 내장 AI를 씀
+                Debug.LogWarning($"Fairy-Stockfish 중단, 내장 AI로 전환: {engineError.Message}");
+                fsEngine?.Dispose();
+                fsEngine = null;
+                fsFailed = true;
+            }
 
             Move bestMove = default;
             if (task.IsFaulted) Debug.LogException(task.Exception);

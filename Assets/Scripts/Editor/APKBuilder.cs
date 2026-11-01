@@ -46,7 +46,19 @@ namespace Janggi.Editor
                 options = BuildOptions.None
             };
 
-            var report = BuildPipeline.BuildPlayer(options);
+            // 기기 시험용 APK라 출시 키(비밀번호는 에디터를 켤 때마다 입력해야 함) 대신 디버그 키로 서명
+            // Build App Bundle을 켜 둔 상태여도 설치할 수 있는 APK가 나오도록 잠시 끔
+            bool customKeystore = PlayerSettings.Android.useCustomKeystore;
+            bool appBundle = EditorUserBuildSettings.buildAppBundle;
+            PlayerSettings.Android.useCustomKeystore = false;
+            EditorUserBuildSettings.buildAppBundle = false;
+            UnityEditor.Build.Reporting.BuildReport report;
+            try { report = BuildPipeline.BuildPlayer(options); }
+            finally
+            {
+                PlayerSettings.Android.useCustomKeystore = customKeystore;
+                EditorUserBuildSettings.buildAppBundle = appBundle;
+            }
             var summary = report.summary;
 
             if (summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded)

@@ -93,7 +93,7 @@ The results are written to `Assets/Resources/PieceArt` and `Assets/Resources/Boa
 
 ## Rebuilding the Android (arm64) engine
 
-Build from the `src` folder of [Fairy-Stockfish](https://github.com/fairy-stockfish/Fairy-Stockfish) at tag `fairy_sf_14`, using the clang from the NDK (r27c) bundled with Unity.
+Build from the `src` folder of [Fairy-Stockfish](https://github.com/fairy-stockfish/Fairy-Stockfish) at commit [`9f778da`](https://github.com/fairy-stockfish/Fairy-Stockfish/tree/9f778da667f6e07dae1e85d3e2ea204fc6dee94d) (the version the janggi network requires), using the clang from the NDK (r27c) bundled with Unity.
 
 ```bash
 "$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/clang++.exe" --target=aarch64-linux-android25 \
@@ -108,6 +108,19 @@ Build from the `src` folder of [Fairy-Stockfish](https://github.com/fairy-stockf
 
 Strip it with `llvm-strip` and place it in `Assets/Plugins/Android/libs/arm64-v8a/`. Android does not allow executing files from the app's data directory, so the engine is shipped under a `.so` name; the installer then extracts it to the native library directory, where it may be executed. At runtime the app looks up that directory and starts the engine with `Runtime.exec`.
 
+The PC engine (`Tools/FairyStockfish/fairy-stockfish-largeboard_x86-64-modern.exe`) is built from the same source with the same NDK clang targeting `x86_64-pc-windows-msvc` (MSVC itself has no 128-bit integers). Run it from a Visual Studio 2022 `vcvars64` prompt, with a copy of the NDK's `ld.lld.exe` named `lld-link.exe` (plus the NDK `bin` DLLs) on `PATH`:
+
+```bat
+clang++ --target=x86_64-pc-windows-msvc -fuse-ld=lld -std=c++17 -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH -O3 -DNDEBUG ^
+  -DIS_64BIT -DUSE_POPCNT -DUSE_SSE41 -DUSE_SSSE3 -DUSE_SSE2 -msse4.1 -mssse3 -mpopcnt ^
+  -DLARGEBOARDS -DPRECOMPUTED_MAGICS -DNNUE_EMBEDDING_OFF -w -fms-extensions -Xclang -fcxx-exceptions ^
+  (same source files) -o fairy-stockfish-largeboard_x86-64-modern.exe
+```
+
+### Neural network evaluation (NNUE)
+
+The engine plays with the janggi network `janggi-9991472750de.nnue` from [Fairy-Stockfish-NNUE](https://github.com/fairy-stockfish/Fairy-Stockfish-NNUE) (GPL v3). It also serves `janggicasual` and `janggitraditional`, but only under a file name that starts with `janggi`. The PC copy is `Tools/FairyStockfish/janggi-9991472750de.nnue`. On Android it ships as `Assets/Plugins/Android/libs/arm64-v8a/libjanggi_nnue.so` and is copied once to the app's data folder under its original name. If the network cannot be loaded, the app falls back to the engine's classical evaluation.
+
 ## Privacy
 
 The app collects no personal data and sends nothing over the network; see [`PRIVACY.md`](PRIVACY.md).
@@ -121,6 +134,7 @@ Third-party components included in the app or used to build it:
 | Component | License | Location |
 |---|---|---|
 | Fairy-Stockfish | GNU GPL v3 | `Tools/FairyStockfish/Copying.txt`; source: https://github.com/fairy-stockfish/Fairy-Stockfish |
+| Fairy-Stockfish janggi NNUE (`janggi-9991472750de.nnue`) | GNU GPL v3 | source: https://github.com/fairy-stockfish/Fairy-Stockfish-NNUE |
 | Yuji Boku, Yuji Syuku fonts | SIL Open Font License 1.1 | `Tools/Fonts/OFL-*.txt` |
 
 Fairy-Stockfish runs as a separate process and talks to the app over UCI. Because the APK contains the engine, any distribution of the app must include the GPL v3 notice and point to the engine's source. In the app, these notices are shown at the bottom of the setup dialog.

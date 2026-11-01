@@ -13,25 +13,53 @@ namespace Janggi
 
         private readonly object sync = new object();
 
+        // 장기 신경망 평가(NNUE). 파일 이름이 변형 이름(janggi)으로 시작해야 엔진이 janggi·janggicasual·janggitraditional에 씀
+        public const string NnueFileName = "janggi-9991472750de.nnue";
+        private readonly string evalFile;
+        private readonly int threads, hashMb;
+
 #if UNITY_ANDROID && !UNITY_EDITOR
         private readonly UnityEngine.AndroidJavaObject process, input, output;
 
         // 설치 시 풀린 네이티브 라이브러리 폴더만 실행 권한이 있음 (앱 데이터 폴더는 Android 10+에서 실행 불가)
-        public static string DefaultPath()
+        public static string NativeLibraryDir()
         {
             using (var info = UnityEngine.Android.AndroidApplication.currentActivity.Call<UnityEngine.AndroidJavaObject>("getApplicationInfo"))
-                return info.Get<string>("nativeLibraryDir") + "/libfairystockfish.so";
+                return info.Get<string>("nativeLibraryDir");
         }
 
-        public FairyStockfishEngine(string exePath)
+        public static string DefaultPath() => NativeLibraryDir() + "/libfairystockfish.so";
+
+        // NNUE는 .so 이름으로 함께 풀리지만 엔진은 파일 이름으로 변형을 가리므로, 앱 데이터 폴더에 원래 이름으로 한 번 복사
+        public static string PrepareNnue()
         {
+            string src = NativeLibraryDir() + "/libjanggi_nnue.so";
+            string dst = System.IO.Path.Combine(UnityEngine.Application.persistentDataPath, NnueFileName);
+            if (!System.IO.File.Exists(src)) return null;
+            long size = new System.IO.FileInfo(src).Length;
+            if (!System.IO.File.Exists(dst) || new System.IO.FileInfo(dst).Length != size)
+            {
+                string tmp = dst + ".tmp"; // 복사 중 앱이 꺼져도 반쯤 쓴 파일을 쓰지 않도록
+                System.IO.File.Copy(src, tmp, true);
+                if (System.IO.File.Exists(dst)) System.IO.File.Delete(dst);
+                System.IO.File.Move(tmp, dst);
+            }
+            return dst;
+        }
+
+        public FairyStockfishEngine(string exePath, string evalFile = null, int threads = 1, int hashMb = 16)
+        {
+            this.evalFile = evalFile;
+            this.threads = threads;
+            this.hashMb = hashMb;
             using (var runtime = new UnityEngine.AndroidJavaClass("java.lang.Runtime"))
             using (var rt = runtime.CallStatic<UnityEngine.AndroidJavaObject>("getRuntime"))
                 process = rt.Call<UnityEngine.AndroidJavaObject>("exec", exePath);
             input = new UnityEngine.AndroidJavaObject("java.io.PrintStream", process.Call<UnityEngine.AndroidJavaObject>("getOutputStream"), true);
             output = new UnityEngine.AndroidJavaObject("java.io.BufferedReader",
                 new UnityEngine.AndroidJavaObject("java.io.InputStreamReader", process.Call<UnityEngine.AndroidJavaObject>("getInputStream")));
-            Init();
+            try { Init(); }
+            catch (Exception) { Dispose(); throw; } // 신경망을 못 읽어 끝난 프로세스 정리
         }
 
         private void Send(string cmd) => input.Call("println", cmd);
@@ -48,8 +76,11 @@ namespace Janggi
 #else
         private readonly Process process;
 
-        public FairyStockfishEngine(string exePath)
+        public FairyStockfishEngine(string exePath, string evalFile = null, int threads = 1, int hashMb = 16)
         {
+            this.evalFile = evalFile;
+            this.threads = threads;
+            this.hashMb = hashMb;
             process = Process.Start(new ProcessStartInfo(exePath)
             {
                 UseShellExecute = false,
@@ -57,7 +88,8 @@ namespace Janggi
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
             });
-            Init();
+            try { Init(); }
+            catch (Exception) { Dispose(); throw; } // 신경망을 못 읽어 끝난 프로세스 정리
         }
 
         private void Send(string cmd)
@@ -88,8 +120,14 @@ namespace Janggi
             Send("uci");
             WaitFor("uciok");
             Send($"setoption name UCI_Variant value {currentVariant}");
+            Send($"setoption name Threads value {threads}");
+            Send($"setoption name Hash value {hashMb}");
+            if (evalFile != null) Send($"setoption name EvalFile value {evalFile}");
             Send("isready");
             WaitFor("readyok");
+            // 신경망을 못 읽으면 엔진이 스스로 종료하므로, 첫 수읽기까지 확인해 실패를 생성 시점에 드러냄
+            Send("go depth 1");
+            WaitFor("bestmove");
         }
 
         // 백그라운드 스레드에서 호출 가능. 이전 요청이 끝날 때까지 기다린 뒤 실행
