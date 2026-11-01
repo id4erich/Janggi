@@ -36,3 +36,5 @@
 # 출시 서명 키는 저장소에 올리지 않음
 *.keystore
 *.jks
+*_BurstDebugInformation_DoNotShip/
+*_BackUpThisFolder_ButDontShipItWithYourGame/
