@@ -54,6 +54,15 @@ namespace Janggi
             UpdateRecordDisplay();
         }
 
+        public void ResetRecord()
+        {
+            PlayerPrefs.DeleteKey(KEY_WIN);
+            PlayerPrefs.DeleteKey(KEY_LOSS);
+            PlayerPrefs.DeleteKey(KEY_DRAW);
+            PlayerPrefs.Save();
+            UpdateRecordDisplay();
+        }
+
         private void UpdateRecordDisplay()
         {
             if (recordText != null)

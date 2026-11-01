@@ -17,10 +17,12 @@ namespace Janggi
             GameObject overlay = CreateOverlay("GameOverDialog");
             RectTransform card = CreateCard(overlay.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(860f, 600f));
 
+            // 둘이서 대국은 '나'의 승패가 없으므로 전적에 넣지 않음 (전적은 AI와 둔 판만)
+            bool twoPlayers = GameManager.Instance != null && !GameManager.Instance.isPlayerVsAI;
             Text title = CreatePanelText(card, "Title", new Vector2(0f, 200f), new Vector2(780f, 100f), 72, TextAnchor.MiddleCenter,
-                isDraw ? TextSubColor : isPlayerWin ? AccentGold : HanColor);
+                isDraw || twoPlayers ? TextSubColor : isPlayerWin ? AccentGold : HanColor);
             title.fontStyle = FontStyle.Bold;
-            title.text = isDraw ? "무승부" : isPlayerWin ? "승리!" : "패배";
+            title.text = isDraw ? "무승부" : twoPlayers ? "대국 종료" : isPlayerWin ? "승리!" : "패배";
 
             Text result = CreatePanelText(card, "Result", new Vector2(0f, 120f), new Vector2(780f, 50f), 28, TextAnchor.MiddleCenter, TextSubColor);
             result.text = resultMsg;
@@ -34,7 +36,11 @@ namespace Janggi
             CreateDialogButton(card, new Vector2(190f, -200f), "새 대국", new Color(0.25f, 0.50f, 0.90f), () =>
                 UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name));
 
-            if (isDraw)
+            if (twoPlayers)
+            {
+                txt.text = isDraw ? "팽팽한 한 판이었습니다" : "수고하셨습니다";
+            }
+            else if (isDraw)
             {
                 RecordDraw();
                 txt.text = "팽팽한 한 판이었습니다";

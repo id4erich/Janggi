@@ -282,7 +282,8 @@ namespace Janggi
             CreateSheetRow(sheet, -100f, "new_game", "새 대국 · 차림과 AI 수준", Color.white, () => { CloseOverlay(); ShowPlacementSetupDialog(); });
             CreateSheetRow(sheet, -224f, "record", "기보 · 둔 수 목록", Color.white, ShowMoveRecordSheet);
             CreateSheetRow(sheet, -348f, "settings", "설정 · 소리와 진동", Color.white, ShowSettingsSheet);
-            CreateSheetRow(sheet, -472f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?", "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
+            CreateSheetRow(sheet, -472f, "flag", "기권", HanColor, () => ShowConfirm("기권할까요?",
+                GameManager.Instance != null && !GameManager.Instance.isPlayerVsAI ? "지금 둘 차례인 쪽이 집니다." : "이번 대국은 패배로 기록됩니다.", "기권", OnResignClicked));
             CreateSheetRow(sheet, -596f, "exit", "나가기", TextSubColor, () => ShowConfirm("앱을 종료할까요?", "두던 대국은 저장되어 다음에 이어서 둘 수 있습니다.", "나가기", OnExitClicked));
         }
 
@@ -352,10 +353,10 @@ namespace Janggi
         {
             JanggiSoundManager sound = JanggiSoundManager.Instance;
             GameObject overlay = CreateOverlay("SettingsSheet");
-            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 524f));
+            RectTransform sheet = CreateCard(overlay.transform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(0f, 648f));
             sheet.anchorMin = new Vector2(0f, 0f);
             sheet.anchorMax = new Vector2(1f, 0f);
-            sheet.sizeDelta = new Vector2(-32f, 524f);
+            sheet.sizeDelta = new Vector2(-32f, 648f);
 
             Text title = CreatePanelText(sheet, "Title", new Vector2(0f, -24f), new Vector2(900f, 60f), 34, TextAnchor.MiddleCenter, Color.white);
             title.rectTransform.anchorMin = title.rectTransform.anchorMax = title.rectTransform.pivot = new Vector2(0.5f, 1f);
@@ -370,6 +371,8 @@ namespace Janggi
                 () => { sound.VoiceEnabled = !sound.VoiceEnabled; ShowSettingsSheet(); });
             CreateSheetRow(sheet, -348f, "settings", $"진동: {(sound.VibrationEnabled ? "켜짐" : "꺼짐")}", sound.VibrationEnabled ? Color.white : TextSubColor,
                 () => { sound.VibrationEnabled = !sound.VibrationEnabled; ShowSettingsSheet(); });
+            CreateSheetRow(sheet, -472f, "record", $"전적 초기화 ({TotalGames}전 {Wins}승 {Losses}패)", HanColor,
+                () => ShowConfirm("전적 초기화", "AI와 둔 승·패·무 기록을 모두 지울까요?", "지우기", ResetRecord));
         }
 
         private void ShowConfirm(string title, string message, string confirmLabel, UnityEngine.Events.UnityAction onConfirm)
