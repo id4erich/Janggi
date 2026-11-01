@@ -299,6 +299,7 @@ namespace Janggi
             timerText.rectTransform.anchorMin = timerText.rectTransform.anchorMax = timerText.rectTransform.pivot = new Vector2(1f, 0.5f);
             timerText.fontStyle = FontStyle.Bold;
             UpdateRecordDisplay();
+            if (BoardView.Instance != null) BoardView.Instance.RefreshCapturedTray(); // 판이 패널보다 먼저 그려졌으면 이어 둔 대국의 잡은 말을 다시 표시
 
             // 하단 도구 막대: 아이콘 + 글자, 화면 폭에 맞춰 4등분
             GameObject toolbar = new GameObject("Toolbar");

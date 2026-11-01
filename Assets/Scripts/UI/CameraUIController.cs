@@ -91,11 +91,7 @@ namespace Janggi
             {
                 // 장기판 좌우 끝을 꽉 채우는 거리 (판 폭 9.52, 바로 위 시점은 여백을 최소로)
                 bool topDown = currentPitch >= 89f;
-                float tanHalf = Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
-                targetDistance = (topDown ? 4.9f : 5.2f) / (tanHalf * aspect);
-                // 태블릿처럼 화면이 넓으면 판 폭만 맞출 때 위아래 잡은 말 줄(z ±6.3)이 선수 패널에 가려짐:
-                // 패널 사이 화면 높이의 약 70% 안에 잡은 말 줄까지 들어오도록 필요하면 더 물러남 (휴대폰은 그대로)
-                if (topDown) targetDistance = Mathf.Max(targetDistance, 6.3f / 0.70f / tanHalf);
+                targetDistance = (topDown ? 4.9f : 5.2f) / (Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aspect);
                 // 비스듬히 볼 때는 가까운 쪽 판 가장자리가 더 넓게 보이므로 그만큼 물러남
                 float fovRatio = Mathf.Tan(mainCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Tan(30f * Mathf.Deg2Rad);
                 targetDistance *= 1f + Mathf.Cos(currentPitch * Mathf.Deg2Rad) * 0.25f * fovRatio;

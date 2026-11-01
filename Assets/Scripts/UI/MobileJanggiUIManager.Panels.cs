@@ -23,6 +23,7 @@ namespace Janggi
             public Text Name;
             public Text Status;
             public Team Team;
+            public RectTransform Captured; // 이 대국자가 잡은 상대 말
         }
 
         private PlayerPanel hanPanel, choPanel;
@@ -88,7 +89,49 @@ namespace Janggi
             panel.Status = CreatePanelText(root.transform, "Status", new Vector2(132f, -24f), new Vector2(460f, 38f), 25, TextAnchor.MiddleLeft, TextSubColor);
             foreach (var t in new[] { panel.Name, panel.Status })
                 t.rectTransform.anchorMin = t.rectTransform.anchorMax = t.rectTransform.pivot = new Vector2(0f, 0.5f);
+
+            // 상태 글 오른쪽, 전적·남은 시간 글 왼쪽 사이에 잡은 말을 줄지어 놓음
+            GameObject captured = new GameObject("Captured");
+            captured.transform.SetParent(root.transform, false);
+            panel.Captured = captured.AddComponent<RectTransform>();
+            panel.Captured.anchorMin = panel.Captured.anchorMax = panel.Captured.pivot = new Vector2(0f, 0.5f);
+            panel.Captured.anchoredPosition = new Vector2(262f, -24f);
+            panel.Captured.sizeDelta = new Vector2(CapturedRowWidth, 36f);
             return panel;
+        }
+
+        private const float CapturedRowWidth = 420f, CapturedIcon = 34f;
+
+        // owner의 말 중 잡힌 것들을 잡은 쪽(상대) 패널에 표시. 많으면 겹쳐 놓아 한 줄에 맞춤
+        public void ShowCapturedPieces(Team owner, List<PieceType> types)
+        {
+            PlayerPanel panel = hanPanel != null && hanPanel.Team != owner ? hanPanel : choPanel;
+            if (panel == null || panel.Team == owner) return;
+            foreach (Transform child in panel.Captured) Destroy(child.gameObject);
+
+            float step = types.Count > 1 ? Mathf.Min(CapturedIcon + 2f, (CapturedRowWidth - CapturedIcon) / (types.Count - 1)) : 0f;
+            Sprite rounded = GetRoundedSprite(48);
+            for (int i = 0; i < types.Count; i++)
+            {
+                GameObject icon = new GameObject($"Captured_{types[i]}");
+                icon.transform.SetParent(panel.Captured, false);
+                RectTransform rect = icon.AddComponent<RectTransform>();
+                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 0.5f);
+                rect.anchoredPosition = new Vector2(i * step, 0f);
+                rect.sizeDelta = new Vector2(CapturedIcon, CapturedIcon);
+                Image mask = icon.AddComponent<Image>();
+                mask.sprite = rounded;
+                mask.type = Image.Type.Sliced;
+                mask.raycastTarget = false;
+                icon.AddComponent<Mask>().showMaskGraphic = false;
+
+                GameObject face = new GameObject("Face");
+                face.transform.SetParent(icon.transform, false);
+                RawImage img = face.AddComponent<RawImage>();
+                img.texture = Resources.Load<Texture2D>($"PieceArt/{owner}_{types[i]}");
+                img.raycastTarget = false;
+                Stretch(img.rectTransform, 0f);
+            }
         }
 
         private Text CreatePanelText(Transform parent, string name, Vector2 pos, Vector2 size, int fontSize, TextAnchor align, Color color)

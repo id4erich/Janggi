@@ -305,19 +305,6 @@ namespace Janggi
             pieceRenderers[data.Position] = obj;
         }
 
-        private static float PieceHeight(PieceType type)
-        {
-            switch (type)
-            {
-                case PieceType.King: return 0.32f;
-                case PieceType.Car:
-                case PieceType.Cannon: return 0.28f;
-                case PieceType.Guard:
-                case PieceType.Pawn: return 0.22f;
-                default: return 0.25f;
-            }
-        }
-
         private GameObject BuildPieceVisual(Team team, PieceType type, string name, bool withCollider)
         {
             GameObject obj = new GameObject(name);
@@ -351,7 +338,7 @@ namespace Janggi
             ren.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             ren.receiveShadows = true;
 
-            // 콜라이더 생성 (판 위의 말만; 잡힌 말 진열대는 클릭 판정에서 제외)
+            // 콜라이더 생성 (말을 눌러 고를 수 있게)
             if (withCollider)
             {
                 BoxCollider boxCol = obj.AddComponent<BoxCollider>();
@@ -360,8 +347,7 @@ namespace Janggi
             return obj;
         }
 
-        // 잡은 말 진열: 초가 잡은 한의 말은 판 아래쪽(초 쪽) 탁자, 한이 잡은 초의 말은 판 위쪽 탁자에 줄지어 놓음
-        private readonly List<GameObject> capturedTray = new List<GameObject>();
+        // 잡은 말 진열: 잡은 쪽 대국자 패널에 작은 말 그림으로 보여 줌 (화면 비율과 상관없이 판을 화면 폭에 꽉 채우려고 판 밖 3D 진열 대신 사용)
         private static readonly (PieceType Type, int Count)[] InitialPieces =
         {
             (PieceType.Car, 2), (PieceType.Cannon, 2), (PieceType.Horse, 2), (PieceType.Elephant, 2),
@@ -370,32 +356,17 @@ namespace Janggi
 
         public void RefreshCapturedTray()
         {
-            foreach (var t in capturedTray) if (t != null) Destroy(t);
-            capturedTray.Clear();
-
-            const float scale = 0.75f, spacing = 0.6f, tableTop = -0.402f;
+            if (MobileJanggiUIManager.Instance == null) return;
             foreach (Team owner in new[] { Team.Cho, Team.Han })
             {
                 var onBoard = new Dictionary<PieceType, int>();
                 foreach (var p in GameManager.Instance.Board)
                     if (p != null && p.Team == owner) onBoard[p.Type] = onBoard.TryGetValue(p.Type, out int c) ? c + 1 : 1;
 
-                // 잡힌 말은 상대 쪽에 놓임: 한의 말 → 아래(z < 0), 초의 말 → 위(z > 0)
-                float z = owner == Team.Han ? -5.95f : 5.95f;
-                int slot = 0;
+                var captured = new List<PieceType>();
                 foreach (var (type, count) in InitialPieces)
-                {
-                    int missing = count - (onBoard.TryGetValue(type, out int n) ? n : 0);
-                    for (int i = 0; i < missing; i++, slot++)
-                    {
-                        GameObject piece = BuildPieceVisual(owner, type, $"Captured_{owner}_{type}", withCollider: false);
-                        float x = -4.2f + (slot % 15) * spacing;
-                        float row = (slot / 15) * spacing * Mathf.Sign(z);
-                        piece.transform.localScale = Vector3.one * scale;
-                        piece.transform.position = new Vector3(x, tableTop + PieceHeight(type) * scale * 0.5f, z + row);
-                        capturedTray.Add(piece);
-                    }
-                }
+                    for (int i = onBoard.TryGetValue(type, out int n) ? n : 0; i < count; i++) captured.Add(type);
+                MobileJanggiUIManager.Instance.ShowCapturedPieces(owner, captured);
             }
         }
 
