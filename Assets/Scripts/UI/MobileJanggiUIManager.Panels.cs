@@ -95,12 +95,12 @@ namespace Janggi
             captured.transform.SetParent(root.transform, false);
             panel.Captured = captured.AddComponent<RectTransform>();
             panel.Captured.anchorMin = panel.Captured.anchorMax = panel.Captured.pivot = new Vector2(0f, 0.5f);
-            panel.Captured.anchoredPosition = new Vector2(262f, -24f);
-            panel.Captured.sizeDelta = new Vector2(CapturedRowWidth, 36f);
+            panel.Captured.anchoredPosition = new Vector2(250f, -22f);
+            panel.Captured.sizeDelta = new Vector2(CapturedRowWidth, CapturedIcon);
             return panel;
         }
 
-        private const float CapturedRowWidth = 420f, CapturedIcon = 34f;
+        private const float CapturedRowWidth = 440f, CapturedIcon = 42f;
 
         // owner의 말 중 잡힌 것들을 잡은 쪽(상대) 패널에 표시. 많으면 겹쳐 놓아 한 줄에 맞춤
         public void ShowCapturedPieces(Team owner, List<PieceType> types)
