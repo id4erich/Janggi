@@ -38,3 +38,4 @@
 *.jks
 *_BurstDebugInformation_DoNotShip/
 *_BackUpThisFolder_ButDontShipItWithYourGame/
+__pycache__/
