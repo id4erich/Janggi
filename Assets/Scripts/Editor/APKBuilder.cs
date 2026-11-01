@@ -58,6 +58,7 @@ namespace Janggi.Editor
             {
                 PlayerSettings.Android.useCustomKeystore = customKeystore;
                 EditorUserBuildSettings.buildAppBundle = appBundle;
+                AssetDatabase.SaveAssets(); // 빌드 중 저장된 '디버그 키' 값을 원래대로 파일에 다시 씀
             }
             var summary = report.summary;
 
