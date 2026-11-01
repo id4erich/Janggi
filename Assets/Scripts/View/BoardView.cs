@@ -370,46 +370,117 @@ namespace Janggi
             }
         }
 
+        // 끌어서 두기: 고른 말을 누른 채 움직이면 손가락을 따라오고, 놓은 칸으로 둠 (짧게 누르면 기존처럼 누르고 누르기)
+        private BoardPos? dragFrom;
+        private Vector2 dragStartScreen;
+        private bool dragging;
+        private Vector3? dragDropWorld; // 끌어다 놓은 위치: 이동 연출을 여기서 시작
+
         private void Update()
         {
-            Vector2? inputPos = null;
+            Vector2? pressPos = null, pointerPos = null;
+            bool held = false, released = false;
 
 #if ENABLE_INPUT_SYSTEM
-            if (UnityEngine.InputSystem.Touchscreen.current != null && UnityEngine.InputSystem.Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+            var touch = UnityEngine.InputSystem.Touchscreen.current;
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (touch != null && (touch.primaryTouch.press.isPressed || touch.primaryTouch.press.wasReleasedThisFrame))
             {
-                inputPos = UnityEngine.InputSystem.Touchscreen.current.primaryTouch.position.ReadValue();
+                pointerPos = touch.primaryTouch.position.ReadValue();
+                held = touch.primaryTouch.press.isPressed;
+                released = touch.primaryTouch.press.wasReleasedThisFrame;
+                if (touch.primaryTouch.press.wasPressedThisFrame) pressPos = pointerPos;
             }
-            else if (UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
+            else if (mouse != null)
             {
-                inputPos = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+                pointerPos = mouse.position.ReadValue();
+                held = mouse.leftButton.isPressed;
+                released = mouse.leftButton.wasReleasedThisFrame;
+                if (mouse.leftButton.wasPressedThisFrame) pressPos = pointerPos;
             }
 #else
-            if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+            if (Input.touchCount > 0)
             {
-                inputPos = Input.GetTouch(0).position;
+                Touch t = Input.GetTouch(0);
+                pointerPos = t.position;
+                held = t.phase != TouchPhase.Ended && t.phase != TouchPhase.Canceled;
+                released = !held;
+                if (t.phase == TouchPhase.Began) pressPos = t.position;
             }
-            else if (Input.GetMouseButtonDown(0))
+            else
             {
-                inputPos = Input.mousePosition;
+                pointerPos = Input.mousePosition;
+                held = Input.GetMouseButton(0);
+                released = Input.GetMouseButtonUp(0);
+                if (Input.GetMouseButtonDown(0)) pressPos = Input.mousePosition;
             }
 #endif
 
-            if (inputPos.HasValue)
+            if (pressPos.HasValue)
             {
                 // UI 위를 클릭/터치했을 경우 장기판 클릭 이벤트 제외 (EventSystem 레이캐스트 검사)
-                if (UnityEngine.EventSystems.EventSystem.current != null && 
+                if (UnityEngine.EventSystems.EventSystem.current != null &&
                     UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
                 {
                     return;
                 }
 
-                Ray ray = Camera.main.ScreenPointToRay(inputPos.Value);
+                Ray ray = Camera.main.ScreenPointToRay(pressPos.Value);
                 if (Physics.Raycast(ray, out RaycastHit hit))
                 {
                     BoardPos pos = WorldToBoardPos(hit.point);
                     OnCellClicked(pos);
+                    // 방금 고른 말이면 끌기 후보
+                    dragFrom = selectedPos.HasValue && selectedPos.Value == pos ? pos : (BoardPos?)null;
+                    dragStartScreen = pressPos.Value;
+                    dragging = false;
                 }
+                return;
             }
+
+            if (!dragFrom.HasValue || !pointerPos.HasValue) return;
+            if (selectedPos != dragFrom || liftedPiece == null) { dragFrom = null; dragging = false; return; } // 다른 이유로 선택이 풀림
+
+            // 손가락이 화면 짧은 변의 3% 넘게 움직이면 끌기 시작 (손 떨림은 무시)
+            if (!dragging && held && Vector2.Distance(pointerPos.Value, dragStartScreen) > Mathf.Min(Screen.width, Screen.height) * 0.03f)
+            {
+                dragging = true;
+                if (liftRoutine != null) { StopCoroutine(liftRoutine); liftRoutine = null; }
+            }
+
+            if (dragging && held && PointerOnBoardPlane(pointerPos.Value, out Vector3 world))
+                liftedPiece.transform.position = world + Vector3.up * 0.25f;
+
+            if (released)
+            {
+                BoardPos from = dragFrom.Value;
+                dragFrom = null;
+                if (!dragging) return; // 짧게 누름: 고른 상태 유지 (다음 누름으로 둠)
+                dragging = false;
+
+                if (PointerOnBoardPlane(pointerPos.Value, out Vector3 drop))
+                {
+                    BoardPos target = WorldToBoardPos(drop);
+                    if (target != from && target.x >= 0 && target.x < 9 && target.y >= 0 && target.y < 10)
+                    {
+                        dragDropWorld = liftedPiece.transform.position;
+                        OnCellClicked(target);
+                        dragDropWorld = null;
+                        return;
+                    }
+                }
+                // 제자리나 판 밖에 놓으면 들어 올린 위치로 돌아감 (선택 유지)
+                liftedPiece.transform.position = BoardToWorldPos(from) + Vector3.up * 0.12f;
+            }
+        }
+
+        private bool PointerOnBoardPlane(Vector2 screen, out Vector3 world)
+        {
+            Ray ray = Camera.main.ScreenPointToRay(screen);
+            var plane = new Plane(Vector3.up, BoardToWorldPos(new BoardPos(0, 0)));
+            if (plane.Raycast(ray, out float d)) { world = ray.GetPoint(d); return true; }
+            world = default;
+            return false;
         }
 
         private float lastBlockedToastTime = -10f;
@@ -457,8 +528,16 @@ namespace Janggi
                 }
 
                 // 이동 또는 상대 말 잡기 시도
+                bool legal = selectedMoves.Contains(pos);
+                GameObject piece = liftedPiece;
+                Vector3? drop = dragDropWorld;
                 DeselectPiece();
-                GameManager.Instance.MakeMove(from, pos);
+                if (!legal || !GameManager.Instance.MakeMove(from, pos))
+                {
+                    // 못 가는 칸: 말을 짧게 좌우로 흔들고 약하게 진동
+                    if (piece != null) StartCoroutine(ShakePiece(piece, BoardToWorldPos(from), drop));
+                    if (JanggiSoundManager.Instance != null) JanggiSoundManager.Instance.Vibrate(30);
+                }
             }
         }
 
@@ -470,7 +549,27 @@ namespace Janggi
             if (p != null)
             {
                 HighlightMoves(p);
+                if (selectedMoves.Count == 0 && MobileJanggiUIManager.Instance != null)
+                    MobileJanggiUIManager.Instance.ShowToast("이 말은 지금 둘 곳이 없습니다");
             }
+        }
+
+        private IEnumerator ShakePiece(GameObject piece, Vector3 rest, Vector3? from)
+        {
+            // 끌어다 놓은 경우 제자리로 미끄러져 돌아온 뒤 흔들림
+            if (from.HasValue)
+                for (float e = 0f; e < 0.12f && piece != null; e += Time.deltaTime)
+                {
+                    piece.transform.position = Vector3.Lerp(from.Value, rest, Mathf.SmoothStep(0f, 1f, e / 0.12f));
+                    yield return null;
+                }
+            Vector3 side = Camera.main != null ? Camera.main.transform.right : Vector3.right;
+            for (float e = 0f; e < 0.24f && piece != null; e += Time.deltaTime)
+            {
+                piece.transform.position = rest + side * (Mathf.Sin(e / 0.24f * Mathf.PI * 4f) * 0.08f * (1f - e / 0.24f));
+                yield return null;
+            }
+            if (piece != null) piece.transform.position = rest;
         }
 
         private void DeselectPiece()
@@ -540,6 +639,7 @@ namespace Janggi
         {
             ClearHighlights();
             var moves = RuleValidator.GetLegalMoves(piece, GameManager.Instance.Board, GameManager.Instance.BikjangRule);
+            selectedMoves = moves;
             
             // 판 위에 납작하게 놓인 표시: 빈 칸은 초록 원판, 잡을 수 있는 상대 말은 아래에 붉은 고리
             Material emptyMat = FlatMaterial(new Color(0.16f, 0.48f, 0.26f));
@@ -563,8 +663,11 @@ namespace Janggi
             }
         }
 
+        private List<BoardPos> selectedMoves = new List<BoardPos>();
+
         private void ClearHighlights()
         {
+            selectedMoves = new List<BoardPos>();
             foreach (var hl in activeHighlights)
             {
                 if (hl != null) Destroy(hl);
@@ -594,16 +697,37 @@ namespace Janggi
                 pieceRenderers.Remove(from);
                 pieceRenderers[to] = movingObj;
 
-                Vector3 startPos = BoardToWorldPos(from);
+                Vector3 startPos = dragDropWorld ?? BoardToWorldPos(from);
                 Vector3 endPos = BoardToWorldPos(to);
+                movingObj.transform.position = startPos;
 
-                StartCoroutine(AnimatePieceMovement(movingObj, startPos, endPos, from, to, capturedObj));
+                GameManager gm = GameManager.Instance;
+                bool byAi = gm.isPlayerVsAI && gm.Board[to.x, to.y] != null && gm.Board[to.x, to.y].Team == gm.aiTeam;
+                StartCoroutine(AnimatePieceMovement(movingObj, startPos, endPos, from, to, capturedObj, byAi));
             }
         }
 
-        private IEnumerator AnimatePieceMovement(GameObject movingObj, Vector3 startPos, Vector3 endPos, BoardPos from, BoardPos to, GameObject capturedObj)
+        private IEnumerator AnimatePieceMovement(GameObject movingObj, Vector3 startPos, Vector3 endPos, BoardPos from, BoardPos to, GameObject capturedObj, bool previewFrom = false)
         {
             int generation = boardGeneration;
+            if (previewFrom && movingObj != null)
+            {
+                // AI 수: 움직일 말을 표시 고리와 함께 잠깐 들어 보여 준 뒤 둠 (어떤 말이 갔는지 따라가기 쉽게)
+                GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                ring.name = "AiFromHighlight";
+                Destroy(ring.GetComponent<Collider>());
+                ring.transform.position = startPos + new Vector3(0f, -0.04f, 0f);
+                ring.transform.localScale = new Vector3(0.90f, 0.025f, 0.90f);
+                ring.GetComponent<Renderer>().sharedMaterial = FlatMaterial(new Color(0.96f, 0.77f, 0.32f));
+                for (float e = 0f; e < 0.08f && movingObj != null; e += Time.deltaTime)
+                {
+                    movingObj.transform.position = startPos + Vector3.up * (0.12f * Mathf.SmoothStep(0f, 1f, e / 0.08f));
+                    yield return null;
+                }
+                yield return new WaitForSeconds(0.22f);
+                Destroy(ring);
+                if (movingObj != null) startPos = movingObj.transform.position;
+            }
             // 거리에 따라 시간·높이를 달리 함: 한 칸은 짧게 들어 "탁", 판 끝까지는 조금 더 길고 높게
             float span = Mathf.InverseLerp(1f, 9f, Vector3.Distance(startPos, endPos) / cellSpacing);
             float duration = Mathf.Lerp(0.18f, 0.34f, span);
