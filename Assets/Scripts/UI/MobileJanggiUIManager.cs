@@ -136,14 +136,15 @@ namespace Janggi
             {
                 if (activeOverlay != null) CloseOverlay();
                 else if (setupDialog != null) Destroy(setupDialog);
+                else if (reviewBar != null) StopReview(); // 복기 중이면 뒤로 가기로 복기를 끝냄
                 else ShowMenuSheet();
             }
 
             GameManager gm = GameManager.Instance;
-            bool humanTurn = gm == null || (gm.IsHumanTurn && !gm.IsGameOver);
+            bool humanTurn = gm == null || (gm.IsHumanTurn && !gm.IsGameOver && !gm.IsReviewing);
 
             // AI가 생각하는 동안은 점이 움직이는 "생각 중" 표시 (타이머는 사람 차례에만 흐름)
-            if (gm != null && !gm.IsHumanTurn && !gm.IsGameOver)
+            if (gm != null && !gm.IsHumanTurn && !gm.IsGameOver && !gm.IsReviewing)
             {
                 int dotCount = 1 + (int)(Time.time * 2.5f) % 3;
                 if (dotCount != thinkingDots) // 점 개수가 바뀔 때만 문자열을 새로 만듦
@@ -155,6 +156,19 @@ namespace Janggi
                 }
             }
             else thinkingDots = 0;
+
+            // AI 생각 진행 막대: 단별 생각 시간에 맞춰 차오름 (9단은 약 3초)
+            foreach (PlayerPanel panel in new[] { hanPanel, choPanel })
+            {
+                if (panel == null || panel.ThinkBar == null) continue;
+                float progress = gm != null && panel.Team == gm.aiTeam ? gm.AiThinkProgress : -1f;
+                panel.ThinkBar.gameObject.SetActive(progress >= 0f);
+                if (progress >= 0f)
+                {
+                    panel.ThinkBar.anchorMax = new Vector2(progress, 0f);
+                    panel.ThinkBar.offsetMax = new Vector2(-40f * progress + 40f * (1f - progress), 16f);
+                }
+            }
 
             // 메뉴·기보·설정 창을 보는 동안은 제한 시간이 흐르지 않음
             if (isTimerRunning && humanTurn && timerText != null && activeOverlay == null && setupDialog == null)
@@ -204,14 +218,16 @@ namespace Janggi
                 bool active = panel.Team == turn && (gm == null || !gm.IsGameOver);
                 string side = panel.Team == Team.Cho ? "초(楚)" : "한(漢)";
                 panel.Name.text = isAi ? $"{side} · AI {gm.aiLevel}단" : gm != null && !gm.isPlayerVsAI ? side : $"{side} · 나";
-                panel.Status.text = gm != null && gm.IsGameOver ? "대국 종료" : active ? (isAi ? "생각 중" : "내 차례") : "대기 중";
+                panel.Status.text = gm != null && gm.IsReviewing ? (panel.Team == turn ? "둘 차례 (복기)" : "") :
+                    gm != null && gm.IsGameOver ? "대국 종료" : active ? (isAi ? "생각 중" : "내 차례") : "대기 중";
                 panel.Status.color = active ? AccentGold : TextSubColor;
                 panel.Outline.enabled = active;
             }
-            bool humanCanAct = gm == null || (gm.IsHumanTurn && !gm.IsGameOver);
+            bool humanCanAct = gm == null || (gm.IsHumanTurn && !gm.IsGameOver && !gm.IsReviewing);
             if (passButton != null) passButton.interactable = humanCanAct;
             if (hintButton != null) hintButton.interactable = humanCanAct;
-            if (undoButton != null) undoButton.interactable = gm == null || gm.CanUndo;
+            if (undoButton != null) undoButton.interactable = gm == null || (gm.CanUndo && !gm.IsReviewing);
+            if (reviewLabel != null && gm != null) reviewLabel.text = $"{gm.ReviewPly} / {gm.ReviewTotal}";
         }
 
         private static Sprite cachedPillSprite;

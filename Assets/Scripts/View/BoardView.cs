@@ -488,6 +488,15 @@ namespace Janggi
         private void OnCellClicked(BoardPos pos)
         {
             GameManager gm = GameManager.Instance;
+            if (gm.IsReviewing)
+            {
+                if (Time.time - lastBlockedToastTime > 1.5f && MobileJanggiUIManager.Instance != null)
+                {
+                    lastBlockedToastTime = Time.time;
+                    MobileJanggiUIManager.Instance.ShowToast("복기 중입니다 · 아래 막대로 앞뒤 수를 봅니다");
+                }
+                return;
+            }
             if (gm.IsGameOver || !gm.IsHumanTurn)
             {
                 // 판을 눌러도 반응이 없는 이유를 알려 줌 (연타 시 1.5초에 한 번만)
@@ -890,7 +899,7 @@ namespace Janggi
             }
         }
 
-        private void ClearHint()
+        public void ClearHint()
         {
             foreach (var m in hintMarkers) if (m != null) Destroy(m);
             hintMarkers.Clear();

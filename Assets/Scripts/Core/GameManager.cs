@@ -156,6 +156,7 @@ namespace Janggi
         {
             if (aiRoutine != null) { StopCoroutine(aiRoutine); aiRoutine = null; }
             if (hintRoutine != null) { StopCoroutine(hintRoutine); hintRoutine = null; }
+            aiThinkStart = -1f; // 멈춘 코루틴은 finally가 돌지 않으므로 여기서 진행 막대를 거둠
         }
 
         // ── 대국 저장·이어 하기 ──────────────────────────────
@@ -214,7 +215,7 @@ namespace Janggi
 
         private void PersistGame()
         {
-            if (replaying || !persistEnabled) return;
+            if (replaying || !persistEnabled || IsReviewing) return;
             if (IsGameOver) PlayerPrefs.DeleteKey(KeySavedGame); // 끝난 대국은 이어 두지 않음
             else PlayerPrefs.SetString(KeySavedGame, SaveToJson());
             PlayerPrefs.Save();
@@ -223,6 +224,65 @@ namespace Janggi
         private void OnApplicationPause(bool paused)
         {
             if (paused) PlayerPrefs.Save();
+        }
+
+        // ── 복기 ──────────────────────────────────────────
+        // 둔 수를 처음부터 원하는 수까지 다시 둬서 그 국면을 보여 줌. 복기 중에는 착수·AI·저장을 막고, 끝내면 원래 국면으로 돌아옴
+
+        public bool IsReviewing { get; private set; }
+        public int ReviewPly { get; private set; }
+        public int ReviewTotal { get; private set; }
+        private string reviewSaved;
+
+        public bool EnterReview()
+        {
+            if (IsReviewing || historyStack.Count == 0) return false;
+            StopAiRoutines();
+            reviewSaved = SaveToJson();
+            ReviewTotal = historyStack.Count;
+            IsReviewing = true;
+            ReviewTo(ReviewTotal);
+            return true;
+        }
+
+        public void ReviewTo(int ply)
+        {
+            if (!IsReviewing) return;
+            ReviewPly = Mathf.Clamp(ply, 0, ReviewTotal);
+            var game = JsonUtility.FromJson<SavedGame>(reviewSaved);
+            game.moves.RemoveRange(ReviewPly, game.moves.Count - ReviewPly);
+            LoadFromJson(JsonUtility.ToJson(game)); // 끝난 판의 마지막 수는 false를 돌려주지만 판은 그 국면이 됨
+            RefreshAfterReplay();
+        }
+
+        public void ExitReview()
+        {
+            if (!IsReviewing) return;
+            LoadFromJson(reviewSaved);
+            IsReviewing = false;
+            RefreshAfterReplay();
+            if (!IsGameOver && !IsHumanTurn) aiRoutine = StartCoroutine(ProcessAITurn());
+        }
+
+        private void RefreshAfterReplay()
+        {
+            if (MobileJanggiUIManager.Instance != null) MobileJanggiUIManager.Instance.UpdateTurnDisplay(CurrentTurn);
+            OnBoardReset?.Invoke();
+        }
+
+        // 공유용 기보 글: 날짜·대국 방식·규칙·차림 머리말 + 둔 수
+        public string GetShareText()
+        {
+            string[] modes = { "AI와 (나는 초)", "AI와 (나는 한)", "둘이서" };
+            string[] rules = { "일반", "빅장 무승부", "대회(점수 판정)" };
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"성원장기 기보 · {DateTime.Now:yyyy-MM-dd HH:mm}");
+            sb.AppendLine($"{modes[(int)Mode]}{(isPlayerVsAI ? $" · AI {aiLevel}단" : "")} · 규칙 {rules[(int)ruleSet]}");
+            string[] placements = { "마상마상", "상마상마", "외상마", "양귀마" }; // PlacementType 순서
+            sb.AppendLine($"차림: 초 {placements[(int)choPlacement]} / 한 {placements[(int)hanPlacement]} · 좌표는 초 쪽 왼쪽 아래가 1,1");
+            foreach (string line in GetMoveRecordLines()) sb.AppendLine(line);
+            if (IsGameOver) sb.AppendLine("(대국 종료)");
+            return sb.ToString();
         }
 
         // ── 기보 ──────────────────────────────────────────
@@ -263,7 +323,9 @@ namespace Janggi
         // 사람 차례에 엔진 최고 실력으로 짧게 읽어 추천 수를 돌려줌 (한수 쉼 추천이면 From == To)
         public bool RequestHint(Action<Move> onResult)
         {
-            if (IsGameOver || !IsHumanTurn || aiRoutine != null || hintRoutine != null) return false;
+            // 복기 중에는 어느 쪽 차례든 그 국면의 추천 수를 볼 수 있음
+            bool allowed = !IsGameOver && (IsReviewing || IsHumanTurn);
+            if (!allowed || aiRoutine != null || hintRoutine != null) return false;
             hintRoutine = StartCoroutine(HintRoutine(onResult));
             return true;
         }
@@ -628,6 +690,10 @@ namespace Janggi
             return copy;
         }
 
+        // AI 생각 진행률(0~1, 단별 생각 시간 기준). 생각 중이 아니면 -1
+        private float aiThinkStart = -1f, aiThinkSeconds = 1f;
+        public float AiThinkProgress => aiThinkStart < 0f ? -1f : Mathf.Clamp01((Time.time - aiThinkStart) / aiThinkSeconds);
+
         private IEnumerator ProcessAITurn()
         {
             yield return new WaitForSeconds(0.3f); // 연출을 위한 짧은 딜레이
@@ -649,7 +715,10 @@ namespace Janggi
                 }
                 return JanggiAIHighLevel.GetBestMove(snapshot, team, level.Depth, level.TimeMs);
             });
-            while (!task.IsCompleted) yield return null; // 이 사이 무르기·기권 시 코루틴이 중단되어 결과를 버림
+            aiThinkStart = Time.time;
+            aiThinkSeconds = Mathf.Max(0.1f, level.TimeMs / 1000f);
+            while (!task.IsCompleted) yield return null; // 이 사이 무르기·기권 시 코루틴이 중단되어 결과를 버림 (진행 막대는 StopAiRoutines가 거둠)
+            aiThinkStart = -1f;
             aiRoutine = null;
             if (engineError != null)
             {

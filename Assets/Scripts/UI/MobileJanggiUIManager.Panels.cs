@@ -24,6 +24,7 @@ namespace Janggi
             public Text Status;
             public Team Team;
             public RectTransform Captured; // 이 대국자가 잡은 상대 말
+            public RectTransform ThinkBar; // AI 생각 진행 막대 (패널 아래 가장자리)
         }
 
         private PlayerPanel hanPanel, choPanel;
@@ -97,6 +98,19 @@ namespace Janggi
             panel.Captured.anchorMin = panel.Captured.anchorMax = panel.Captured.pivot = new Vector2(0f, 0.5f);
             panel.Captured.anchoredPosition = new Vector2(250f, -22f);
             panel.Captured.sizeDelta = new Vector2(CapturedRowWidth, CapturedIcon);
+
+            GameObject bar = new GameObject("ThinkBar");
+            bar.transform.SetParent(root.transform, false);
+            Image barImg = bar.AddComponent<Image>();
+            barImg.color = AccentGold;
+            barImg.raycastTarget = false;
+            panel.ThinkBar = barImg.rectTransform;
+            panel.ThinkBar.anchorMin = new Vector2(0f, 0f);
+            panel.ThinkBar.anchorMax = new Vector2(0f, 0f);
+            panel.ThinkBar.pivot = new Vector2(0f, 0f);
+            panel.ThinkBar.offsetMin = new Vector2(40f, 10f);
+            panel.ThinkBar.offsetMax = new Vector2(40f, 16f);
+            bar.SetActive(false);
             return panel;
         }
 
@@ -311,7 +325,7 @@ namespace Janggi
             RectTransform vp = viewport.AddComponent<RectTransform>();
             vp.anchorMin = Vector2.zero;
             vp.anchorMax = Vector2.one;
-            vp.offsetMin = new Vector2(40f, 30f);
+            vp.offsetMin = new Vector2(40f, 160f);
             vp.offsetMax = new Vector2(-40f, -130f);
             viewport.AddComponent<RectMask2D>();
             Image vpHit = viewport.AddComponent<Image>();
@@ -347,6 +361,105 @@ namespace Janggi
             scroll.movementType = ScrollRect.MovementType.Clamped;
             Canvas.ForceUpdateCanvases();
             scroll.verticalNormalizedPosition = 0f;
+
+            if (GameManager.Instance == null || GameManager.Instance.GetMoveRecordLines().Count == 0) return;
+            CreateDialogButton(sheet, new Vector2(-190f, -470f), "공유", new Color(0.26f, 0.28f, 0.34f), () => ShareText(GameManager.Instance.GetShareText()));
+            CreateDialogButton(sheet, new Vector2(190f, -470f), "복기", new Color(0.25f, 0.50f, 0.90f), () => { CloseOverlay(); StartReview(); });
+        }
+
+        // 기보 공유: 안드로이드는 공유 창(카카오톡·메모 등), 에디터는 클립보드
+        private void ShareText(string text)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var intent = new AndroidJavaObject("android.content.Intent", "android.intent.action.SEND"))
+                {
+                    intent.Call<AndroidJavaObject>("setType", "text/plain");
+                    intent.Call<AndroidJavaObject>("putExtra", "android.intent.extra.SUBJECT", "성원장기 기보");
+                    intent.Call<AndroidJavaObject>("putExtra", "android.intent.extra.TEXT", text);
+                    using (var intentClass = new AndroidJavaClass("android.content.Intent"))
+                    using (var chooser = intentClass.CallStatic<AndroidJavaObject>("createChooser", intent, "기보 공유"))
+                        UnityEngine.Android.AndroidApplication.currentActivity.Call("startActivity", chooser);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"기보 공유 실패: {e.Message}");
+                GUIUtility.systemCopyBuffer = text;
+                ShowToast("기보를 복사했습니다");
+            }
+#else
+            GUIUtility.systemCopyBuffer = text;
+            ShowToast("기보를 복사했습니다");
+#endif
+        }
+
+        // ── 복기 막대: 도구 막대 자리를 덮고 처음·이전·다음·끝·추천·닫기 ──
+        private GameObject reviewBar;
+        private Text reviewLabel;
+
+        private void StartReview()
+        {
+            GameManager gm = GameManager.Instance;
+            if (gm == null || !gm.EnterReview()) { ShowToast("복기할 수가 없습니다"); return; }
+            if (BoardView.Instance != null) BoardView.Instance.ClearHint();
+
+            reviewBar = new GameObject("ReviewBar");
+            reviewBar.transform.SetParent(uiCanvas, false);
+            RectTransform rect = reviewBar.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.sizeDelta = new Vector2(0f, 190f);
+            reviewBar.AddComponent<Image>().color = new Color(0.07f, 0.07f, 0.09f, 1f);
+            HorizontalLayoutGroup layout = reviewBar.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(16, 16, 14, 40);
+            layout.spacing = 8f;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = true;
+
+            CreateReviewButton("|◀", () => ReviewStep(-9999));
+            CreateReviewButton("◀", () => ReviewStep(-1));
+            reviewLabel = CreatePanelText(reviewBar.transform, "Ply", Vector2.zero, Vector2.zero, 30, TextAnchor.MiddleCenter, AccentGold);
+            reviewLabel.fontStyle = FontStyle.Bold;
+            CreateReviewButton("▶", () => ReviewStep(1));
+            CreateReviewButton("▶|", () => ReviewStep(9999));
+            CreateReviewButton("추천", OnHintClicked);
+            CreateReviewButton("닫기", StopReview);
+            UpdateTurnDisplay(gm.CurrentTurn);
+        }
+
+        private void CreateReviewButton(string label, UnityEngine.Events.UnityAction action)
+        {
+            GameObject obj = new GameObject($"Review_{label}");
+            obj.transform.SetParent(reviewBar.transform, false);
+            Image img = obj.AddComponent<Image>();
+            img.sprite = GetRoundedSprite(48);
+            img.type = Image.Type.Sliced;
+            img.color = new Color(0.26f, 0.28f, 0.34f);
+            obj.AddComponent<Button>().onClick.AddListener(action);
+            Text txt = CreatePanelText(obj.transform, "Label", Vector2.zero, Vector2.zero, 30, TextAnchor.MiddleCenter, Color.white);
+            txt.fontStyle = FontStyle.Bold;
+            txt.text = label;
+            Stretch(txt.rectTransform, 0f);
+        }
+
+        private void ReviewStep(int delta)
+        {
+            GameManager gm = GameManager.Instance;
+            if (gm == null || !gm.IsReviewing) return;
+            if (BoardView.Instance != null) BoardView.Instance.ClearHint();
+            gm.ReviewTo(gm.ReviewPly + delta);
+        }
+
+        public void StopReview()
+        {
+            if (reviewBar != null) Destroy(reviewBar);
+            reviewBar = null;
+            reviewLabel = null;
+            if (BoardView.Instance != null) BoardView.Instance.ClearHint();
+            if (GameManager.Instance != null) GameManager.Instance.ExitReview();
         }
 
         private void ShowSettingsSheet()

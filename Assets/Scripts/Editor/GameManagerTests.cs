@@ -177,6 +177,30 @@ namespace Janggi.Tests
         }
 
         [Test]
+        public void Review_StepsThroughMovesAndRestores()
+        {
+            Assert.IsTrue(gm.MakeMove(new BoardPos(0, 3), new BoardPos(1, 3)));
+            gm.PassTurn();
+            Assert.IsTrue(gm.MakeMove(new BoardPos(0, 0), new BoardPos(0, 6))); // 병을 잡음
+
+            Assert.IsTrue(gm.EnterReview());
+            Assert.AreEqual(3, gm.ReviewTotal);
+            gm.ReviewTo(1); // 첫 수만 둔 국면
+            Assert.IsNotNull(gm.Board[1, 3]);
+            Assert.AreEqual(PieceType.Pawn, gm.Board[0, 6].Type);
+            Assert.AreEqual(Team.Han, gm.CurrentTurn);
+            gm.ReviewTo(0);
+            Assert.IsNotNull(gm.Board[0, 3]);
+
+            gm.ExitReview();
+            Assert.IsFalse(gm.IsReviewing);
+            Assert.AreEqual(PieceType.Car, gm.Board[0, 6].Type);
+            Assert.AreEqual(Team.Han, gm.CurrentTurn);
+            Assert.IsTrue(gm.UndoMove()); // 무르기 기록도 원래대로
+            Assert.AreEqual(PieceType.Pawn, gm.Board[0, 6].Type);
+        }
+
+        [Test]
         public void TimeOut_LosesOnlyWhenLimitIsSet()
         {
             gm.moveTimeLimitSec = 0;

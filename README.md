@@ -13,20 +13,22 @@ A Korean chess (janggi) app built with Unity. It targets Android (arm64) and use
   - Moves that leave your own General in check are rejected; checkmate ends the game
   - Pass, undo, resign
 - Game modes: vs AI as Cho, vs AI as Han (the AI moves first and the board is turned around), or two players on one device
-- Sound effects and voice lines can be turned on or off separately (Menu → Settings)
+- Sound effects, voice lines and vibration can be turned on or off separately (Menu → Settings); the win/loss record can be reset there too
 - Four Horse/Elephant setups, chosen separately for each side (Cho and Han)
-- AI levels 1–9 (dan). Uses Fairy-Stockfish; falls back to a built-in alpha-beta AI if the engine cannot be started
+- AI levels 1–9 (dan). Uses Fairy-Stockfish with the janggi neural network (NNUE); level 9 is the engine at full strength. Falls back to classical evaluation if the network cannot be loaded, and to a built-in alpha-beta AI if the engine cannot be started. A gold bar under the AI panel shows its thinking time, and its piece is lifted with a gold ring before it moves
 - 3D presentation: chamfered octagonal boxwood pieces with engraved brush-script characters, a wood-grain board, a top-down view that fills the screen width (the "view" button switches to an angled 3D view), and soft shadows
 - Player panels for both sides (turn highlight, AI level, remaining time, record) and a bottom toolbar (undo, pass, hint, view, menu); resign and quit are in the menu and ask for confirmation
 - The game in progress is saved after every move and resumed when the app restarts (undo history included)
 - When a General is in check it is marked with a red ring; the "hint" button shows the engine's suggested move with an arrow
-- Move record (Menu → Move record): numbered list of moves with side, piece, coordinates and captures
+- Move record (Menu → Move record): numbered list of moves with side, piece, coordinates and captures. It can be shared as text, or opened in review mode to step through the game and ask the engine for its move in any position
 - Rule sets matching Fairy-Stockfish's janggi variants, so the AI plays by the same rules:
   - Casual (`janggicasual`): no bikjang; two passes in a row end the game in a draw
   - Bikjang draw (`janggitraditional`): when the Generals face each other on an open file, the opponent must break it or accept with a pass, which ends the game in a draw
   - Tournament (`janggi`): bikjang or two passes end the game and the winner is decided by material points (Han gets a 1.5-point bonus)
 - Optional move time limit (none / 30 s / 60 s); running out of time loses the game
-- Captured pieces are lined up on the table beside the board (pieces captured by Cho at the bottom, by Han at the top)
+- Captured pieces are shown as small icons in the capturing player's panel
+- Moving pieces: tap-then-tap or drag-and-drop; a wooden clack and vibration when a piece lands; illegal targets shake the piece
+- Two-player games are not counted in the win/loss record
 - Voice lines (such as "Janggun!", the call for check) are spoken with the device's built-in TextToSpeech (works offline)
 
 The in-game text is in Korean.
